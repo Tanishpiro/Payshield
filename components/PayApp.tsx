@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "./ui";
 import "./payment.css";
+import "./payment-actions.css";
 import { LEVEL_META, type RiskLevel } from "@/lib/risk";
 import QrScanner from "./QrScanner";
 import { parsePaymentQr, parseVoicePayment, resolveReceiver, upiPaymentUri } from "@/lib/payment-intent";
-import { listenForPayment, verifyOwner, cancelListening, stopNativeAudio } from "@/lib/native";
+import { listenForPayment, verifyOwner, cancelListening, stopNativeAudio, isNativeAndroid } from "@/lib/native";
 import { App } from "@capacitor/app";
 import VoiceGuide from "./VoiceGuide";
 import ScamReport from "./ScamReport";
@@ -35,6 +36,8 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   const session = useRef(0);
   const authorizing = useRef(false);
   const [sessionId,setSessionId] = useState(0);
+  const [android,setAndroid] = useState(false);
+  useEffect(() => { setAndroid(isNativeAndroid()); }, []);
   useEffect(() => { if (voicePayment) window.scrollTo({ top: 0, behavior: 'instant' }); }, [voicePayment]);
 
   const acceptVoiceIntent = useCallback((transcript: string) => {
@@ -176,7 +179,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     <header className="ps-header"><div className="ps-brand"><Logo size={32}/><div><strong>PayShield</strong><small>Every payment. Protected.</small></div></div><span className="ps-tag">PROTOTYPE</span></header>
     <main className="ps-content">
     {voicePayment && <section className="ps-card ps-conversation" aria-live="polite"><Icon kind="mic"/><h1>{listening?'Listening…':step==='analysing'?'Checking your payment…':step==='paid'?'Demo successful':step==='authenticating'?'Confirm your fingerprint':'Voice payment'}</h1><p>{voiceText || 'Say: Send 2000 rupees from HDFC to Suresh.'}</p>{a&&<p>{inr(a.amount)} · Risk {a.score}/100 · {a.score>90?'Payment blocked':'No real funds move'}</p>}{step==='result'&&a?.score<=90&&<button className="ps-secondary" disabled={listening} onClick={captureVoiceApproval}>Say approve or cancel</button>}<button className="ps-secondary" onClick={reset}>{step==='paid'?'Back to payments':'Cancel voice payment'}</button></section>}
-    <div hidden={voicePayment}>
+    <div className="ps-payment-panels" hidden={voicePayment}>
     {step === "scan" && <>
       <section className="ps-hero"><span className="ps-eyebrow">PAY WITH PEACE OF MIND</span><h1>Your money.<br/>An extra layer of care.</h1><p>AI Police checks the receiver before you pay.</p><span className="ps-protection">● Protection is on</span><div className="ps-hero-symbol"><Icon kind="shield"/></div></section>
       <section className="ps-card"><div className="ps-title"><h2>Transfer money</h2><span>Simple & secure</span></div>
@@ -209,7 +212,12 @@ export default function PayApp({ handles, analyse: analyseFn }: {
       <section className={"ps-card ps-result risk-"+a.level}><span className="ps-eyebrow">YOUR PAYMENT CHECK</span><div className="ps-score" style={{"--score":a.score+"%"} as React.CSSProperties}><div><strong>{a.score}<small>/100</small></strong><span>Risk score</span></div></div><span className="ps-risk-label">{meta!.label}</span><h1>{res.receiver.display_name}</h1><p className="ps-handle">{res.receiver.handle}</p><p>{a.headline}</p>{a.synthetic && <span className="ps-tag">Demo score · No real funds</span>}</section>
       <section className="ps-card"><div className="ps-title"><h2>Payment summary</h2><strong>{inr(a.amount)}</strong></div><div className="ps-assurance"><Icon kind="shield"/><strong>{meta!.action}</strong></div>{voicePayment && <p className="ps-muted">Voice request · face or fingerprint required</p>}</section>
       <section className="ps-card"><div className="ps-title"><h2>Behind the score</h2><span>AI Police</span></div>{[...a.reasons.slice(0,5),...a.positives.slice(0,3)].map((r:any) => <div className="ps-reason" key={r.code}><Icon kind="shield"/><div><strong>{r.label}</strong><p>{r.detail}</p></div></div>)}</section>
-      <button className="ps-primary" disabled={a.action === "block"} onClick={authorizePayment}>{a.action === "block" ? "Payment blocked" : "Verify face / fingerprint"}<Icon kind="shield"/></button><button className="ps-secondary" onClick={reset}>Cancel payment</button>
+      <section className="ps-payment-actions" aria-label="Payment actions">
+        {a.action === 'block' || a.score > 90 ? <button className="ps-primary" disabled>Payment blocked <Icon kind="shield"/></button>
+          : android ? <button className="ps-primary" onClick={authorizePayment}>Verify face / fingerprint <Icon kind="shield"/></button>
+          : <><div className="ps-browser-verification"><Icon kind="shield"/><div><strong>Continue securely on Android</strong><p>You can check risk and create reports here. Face or fingerprint verification is available in the PayShield Android app.</p></div></div><a className="ps-primary" href="https://payshield-ai-police.netlify.app/PayShield-latest.apk">Download Android app <Icon kind="arrow"/></a></>}
+        <button className="ps-secondary" onClick={reset}>Cancel payment</button>
+      </section>
     </>}
     {step === "paid" && <section className="ps-card ps-status"><div className="ps-success">✓</div><h1>{a?.synthetic ? "Demo complete" : "Ready in your UPI app"}</h1><strong className="ps-paid-amount">{inr(Number(amount))}</strong><p className="ps-handle">{handle}</p><p>{a?.synthetic ? "Your prototype payment is complete. No real money was transferred." : "Finish authorizing the payment in your UPI app. Your bank will confirm its status."}</p><button className="ps-primary" onClick={reset}>Back to payments</button></section>}
     </div>

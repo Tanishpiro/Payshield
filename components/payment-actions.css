@@ -1,0 +1,10 @@
+.ps-payment-panels { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ps-payment-panels[hidden] { display: none; }
+.ps-payment-actions { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+.ps-payment-actions > .ps-primary, .ps-payment-actions > .ps-secondary { width: 100%; min-height: 52px; padding: 13px 16px; text-align: center; text-decoration: none; }
+.ps-payment-actions > .ps-secondary { font-weight: 600; }
+.ps-browser-verification { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 1px solid #d6e4f7; border-radius: 14px; background: #edf4ff; color: #315578; }
+.ps-browser-verification > svg { width: 22px; height: 22px; color: #1264df; }
+.ps-browser-verification strong { display: block; font-size: 13px; margin-bottom: 5px; }
+.ps-browser-verification p { font-size: 12px; line-height: 1.65; }
+.ps-payment-actions a:focus-visible { outline: 3px solid #73adff; outline-offset: 3px; }
