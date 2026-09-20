@@ -16,7 +16,7 @@ type Step = "scan" | "amount" | "analysing" | "result" | "authenticating" | "pai
 export default function PayApp({ handles, analyse: analyseFn }: {
   handles: { handle: string; name: string }[];
   /** Android build passes an on-device analyser; the web build uses the /api/risk route. */
-  analyse?: (handle: string, amount: number) => Promise<any>;
+  analyse?: (handle: string, amount: number, inputMode?: "manual" | "qr" | "voice") => Promise<any>;
 }) {
   const [step, setStep] = useState<Step>("scan");
   const [handle, setHandle] = useState("");
@@ -27,6 +27,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   const [voicePayment, setVoicePayment] = useState(false);
   const [voiceText, setVoiceText] = useState("");
   const [error, setError] = useState("");
+  const [inputMode, setInputMode] = useState<"manual" | "qr" | "voice">("manual");
 
   const acceptVoiceIntent = useCallback((transcript: string) => {
     const intent = parseVoicePayment(transcript);
@@ -36,6 +37,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     setBank(intent.bank);
     setVoiceText(intent.transcript);
     setVoicePayment(true);
+    setInputMode("voice");
     setStep("amount");
   }, [handles]);
 
@@ -63,10 +65,10 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     setStep("analysing");
     const t0 = Date.now();
     const r = analyseFn
-      ? await analyseFn(handle, Number(amount)).catch(() => null)
+      ? await analyseFn(handle, Number(amount), inputMode).catch(() => null)
       : await fetch("/api/risk", {
           method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ handle, amount: Number(amount), sender: "mobile@payshield" }),
+          body: JSON.stringify({ handle, amount: Number(amount), sender: "mobile@payshield", inputMode }),
         }).then((x) => x.json()).catch(() => null);
     setTimeout(() => {
       if (!r?.assessment) {
@@ -78,7 +80,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     }, Math.max(0, 1600 - (Date.now() - t0)));
   }
 
-  function reset() { setStep("scan"); setHandle(""); setAmount(""); setRes(null); setBank(""); setVoicePayment(false); setVoiceText(""); setError(""); }
+  function reset() { setStep("scan"); setHandle(""); setAmount(""); setRes(null); setBank(""); setVoicePayment(false); setVoiceText(""); setError(""); setInputMode("manual"); }
 
   async function captureVoice() {
     setError("");
@@ -95,6 +97,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     setHandle(qr.handle);
     if (qr.amount) setAmount(String(qr.amount));
     setVoicePayment(false);
+    setInputMode("qr");
     setStep(qr.amount ? "amount" : "amount");
   }, []);
 
@@ -114,7 +117,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
       }
     }
     try {
-      await openUpi(upiPaymentUri(res.receiver.handle, res.receiver.display_name, Number(amount)), a.score);
+      if (!a.synthetic) await openUpi(upiPaymentUri(res.receiver.handle, res.receiver.display_name, Number(amount)), a.score);
       setStep("paid");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No compatible UPI app is available.");
@@ -148,7 +151,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
           </button>
           <p className="mt-4 text-center text-sm text-slate-400">Scan a QR code, or enter the receiver&apos;s UPI ID</p>
 
-          <input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="name@bank"
+          <input value={handle} onChange={(e) => { setHandle(e.target.value); setInputMode("manual"); setVoicePayment(false); }} placeholder="UPI ID or payment number"
             className="mono mt-5 w-full rounded-2xl border border-[#1c2740] bg-[#0b1220] px-4 py-3.5 text-sm outline-none focus:border-sky-500/50" />
 
           <div className="mt-3">
@@ -165,6 +168,14 @@ export default function PayApp({ handles, analyse: analyseFn }: {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[{ name: "Suresh", number: "9876543210" }, { name: "Anita", number: "9812345678" }].map((contact) => (
+              <button key={contact.number} onClick={() => { setHandle(contact.number); setInputMode("manual"); setVoicePayment(false); }} className="rounded-xl border border-emerald-500/20 bg-emerald-500/[.04] px-3 py-2 text-left">
+                <span className="block text-xs text-slate-200">{contact.name}</span><span className="mono text-[10px] text-emerald-400">10/100 demo number</span>
+              </button>
+            ))}
           </div>
 
           <button onClick={captureVoice} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-400/[.06] py-3 text-sm font-medium text-cyan-200">
@@ -239,6 +250,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
             <h2 className="mt-3 text-center text-lg font-semibold">{res.receiver.display_name}</h2>
             <div className="mono text-xs text-slate-500">{res.receiver.handle}</div>
             <p className="mt-3 text-center text-sm text-slate-300">{a.headline}</p>
+            {a.synthetic && <div className="mt-3 rounded-full border border-cyan-400/25 bg-cyan-400/[.06] px-3 py-1 text-[10px] uppercase tracking-wider text-cyan-300">Synthetic prototype score · no real funds</div>}
           </div>
 
           <div className="mt-4"><TrustBar value={a.trustScore} /></div>
@@ -288,7 +300,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
           <div className="grid h-20 w-20 place-content-center rounded-full border border-emerald-500/40 bg-emerald-500/10 text-3xl text-emerald-300">✓</div>
           <h2 className="mt-4 text-lg font-semibold">Payment securely handed off</h2>
           <div className="mono mt-1 text-sm text-slate-400">{inr(Number(amount))} → {handle}</div>
-          <p className="mt-2 text-xs text-slate-500">Complete the payment in your UPI app. Your UPI provider—not PayShield—selects and authorizes the linked bank account. The PayShield risk assessment is on record.</p>
+          <p className="mt-2 text-xs text-slate-500">{a?.synthetic ? "Prototype completed. No UPI app was opened and no real funds moved." : "Complete the payment in your UPI app. Your UPI provider—not PayShield—selects and authorizes the linked bank account. The PayShield risk assessment is on record."}</p>
           <button onClick={reset} className="mt-6 w-full rounded-2xl border border-[#1c2740] py-3 text-sm text-slate-300">New payment</button>
         </div>
       )}

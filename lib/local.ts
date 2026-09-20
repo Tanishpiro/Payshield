@@ -2,7 +2,7 @@
 // and runs the same risk engine on-device, so the app works without the web server.
 
 import { createClient } from "@supabase/supabase-js";
-import { assess, type ReceiverFacts } from "./risk";
+import { applyPrototypeProfile, assess, type ReceiverFacts } from "./risk";
 
 const SUPABASE_URL = "https://mrkehxmoqpxaycrtcxwq.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-nCTKkr92fhk2tSg7YhDGw_OZpQ28hM";
@@ -15,12 +15,29 @@ export async function listReceivers() {
   return (data ?? []).map((r: any) => ({ handle: r.handle, name: r.display_name }));
 }
 
-export async function analyseLocal(handle: string, amount: number) {
+export async function analyseLocal(handle: string, amount: number, inputMode?: "manual" | "qr" | "voice") {
   const h = handle.trim().toLowerCase();
+  const isNumber = /^\+?\d{10,15}$/.test(h);
   const { data: rs } = await db.from("ps_receivers").select("*").ilike("handle", h).limit(1);
   const r = rs?.[0];
 
   if (!r) {
+    if (inputMode === "qr") {
+      const assessment = applyPrototypeProfile({
+        score: 78, level: "high", action: "verify", trustScore: 10, amount,
+        headline: "Unknown receiver", reasons: [], positives: [], confidence: 100,
+        policyVersion: "AI-POLICE-2.0", scoreBasis: "risk-engine",
+      }, "qr");
+      return { found: true, receiver: { handle: h, display_name: "Scanned demo receiver", kyc_status: "unverified", links: [] }, assessment };
+    }
+    if (isNumber) {
+      const assessment = applyPrototypeProfile({
+        score: 78, level: "high", action: "verify", trustScore: 10, amount,
+        headline: "Unknown receiver", reasons: [], positives: [], confidence: 100,
+        policyVersion: "AI-POLICE-2.0", scoreBasis: "risk-engine",
+      }, "number");
+      return { found: true, receiver: { handle: h, display_name: `Demo receiver ${h.slice(-4)}`, kyc_status: "verified", links: [] }, assessment };
+    }
     return {
       found: false,
       receiver: { handle, display_name: "Unknown receiver", kyc_status: "unverified", links: [] },
@@ -76,7 +93,7 @@ export async function analyseLocal(handle: string, amount: number) {
     }),
   };
 
-  const a = assess(facts, amount);
+  const a = applyPrototypeProfile(assess(facts, amount), inputMode === "qr" ? "qr" : undefined);
   db.from("ps_assessments").insert({
     receiver_id: r.id, receiver_handle: r.handle, sender_handle: "android@payshield", amount,
     score: a.score, level: a.level, action: a.action, trust_score: a.trustScore,

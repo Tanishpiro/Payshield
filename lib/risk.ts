@@ -42,6 +42,8 @@ export type Assessment = {
   amount: number;
   confidence: number;
   policyVersion: string;
+  synthetic?: boolean;
+  scoreBasis?: "risk-engine" | "prototype-number" | "prototype-qr";
 };
 
 const DAY = 86400000;
@@ -177,5 +179,50 @@ export function assess(f: ReceiverFacts, amount: number): Assessment {
     amount,
     confidence: Math.min(99, Math.round(58 + Math.log10(f.totalTx + 1) * 12 + Math.min(12, f.distinctDays / 30))),
     policyVersion: "AI-POLICE-2.0",
+    scoreBasis: "risk-engine",
   };
+}
+
+/** Fixed, clearly-labelled scores used only for the synthetic hackathon journey. */
+export function applyPrototypeProfile(assessment: Assessment, profile?: "number" | "qr"): Assessment {
+  if (profile === "number") {
+    return {
+      ...assessment,
+      score: 10,
+      level: "low",
+      action: "allow",
+      headline: "Prototype number profile — low-risk dummy receiver.",
+      reasons: [],
+      positives: [{
+        code: "DEMO_NUMBER_PROFILE",
+        label: "Synthetic trusted-number profile",
+        detail: "Prototype policy assigns manually entered payment numbers a fixed 10/100 score",
+        weight: 90,
+        category: "reputation",
+        direction: "trust",
+      }],
+      synthetic: true,
+      scoreBasis: "prototype-number",
+    };
+  }
+  if (profile === "qr") {
+    return {
+      ...assessment,
+      score: 80,
+      level: "high",
+      action: "verify",
+      headline: "Prototype QR profile — verify the receiver before continuing.",
+      reasons: [{
+        code: "DEMO_QR_PROFILE",
+        label: "Synthetic high-risk QR profile",
+        detail: "Prototype policy assigns scanned QR payments a fixed 80/100 score",
+        weight: 80,
+        category: "behaviour",
+        direction: "risk",
+      }],
+      synthetic: true,
+      scoreBasis: "prototype-qr",
+    };
+  }
+  return assessment;
 }

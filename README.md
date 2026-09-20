@@ -11,6 +11,27 @@ PayShield is a hackathon-grade, explainable pre-payment risk layer. Version 2 ad
 - PayShield never silently transfers funds. After risk and identity checks it opens an installed UPI app, where the regulated provider performs final authorization.
 - No fraud product can promise zero fraud. This prototype fails closed on critical risk and is designed to reduce fraud with explainable controls.
 
+## Prototype dummy profiles
+
+- A manually entered 10–15 digit payment number receives a fixed **10/100 Low Risk** score.
+- A receiver obtained from a scanned UPI QR receives a fixed **80/100 High Risk** score.
+- These results are labelled synthetic and never open a real UPI payment app or move funds.
+- Manually entered UPI IDs and voice-resolved UPI IDs continue through the normal AI Police engine.
+
+## Risk factors
+
+Normal AI Police scores measure seven groups of signals:
+
+1. Identity and KYC completion.
+2. Receiver account age and maturity.
+3. Transaction velocity, unique senders, and sudden activity spikes.
+4. Payment amount compared with the receiver's normal ticket size.
+5. Confirmed fraud signals, unresolved complaints, and clean history.
+6. Emulator, VPN, foreign-IP, and shared-device indicators.
+7. Links to flagged receivers and suspected fraud-network clusters.
+
+Trust signals—verified identity, established history, consistent activity, and a clean reputation—offset risk. Confirmed or coordinated fraud applies hard minimum scores so trust cannot erase serious evidence.
+
 Deployment kuch nahi kiya. Sab local hai, aur Supabase pe data already ready hai.
 
 ## 1. Web dashboard + pay app (PC)
