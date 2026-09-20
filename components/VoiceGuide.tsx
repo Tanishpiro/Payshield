@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CapacitorHttp } from "@capacitor/core";
-import { isNativeAndroid, playNativeAudio, stopNativeAudio } from "@/lib/native";
+import { isNativeAndroid, playNativeAudio, stopNativeAudio, speakNative } from "@/lib/native";
+import { buildNarration } from '@/lib/narration';
 import type { NarrationRequest } from "@/lib/narration";
 
 type Props = {
@@ -94,6 +95,14 @@ export default function VoiceGuide(props: Props) {
     const cacheKey = JSON.stringify(body) + url + code;
     setStatus("");
     try {
+      if (isNativeAndroid() && code.trim().length < 24) {
+        setStatus('Speaking with Android voice');
+        await speakNative(buildNarration(body));
+        if (current !== generation.current) return;
+        setStatus('Finished speaking.');
+        if (body.event === 'result' && body.requestApproval) props.onNarrationEnded?.();
+        return;
+      }
       if (code.trim().length < 24) throw new Error("Enter your private voice access code in Voice settings. This is not your ElevenLabs API key.");
       if (!cached.current || cached.current.key !== cacheKey) {
         clearAudio();
@@ -153,6 +162,16 @@ export default function VoiceGuide(props: Props) {
       }
     } catch (error) {
       if (current !== generation.current) return;
+      if (isNativeAndroid() && code.trim().length >= 24) {
+        try {
+          setStatus('ElevenLabs unavailable. Using Android voice.');
+          await speakNative(buildNarration(body));
+          if (current !== generation.current) return;
+          setBusy(false);setStatus('Finished speaking with Android voice.');
+          if (body.event === 'result' && body.requestApproval) props.onNarrationEnded?.();
+          return;
+        } catch { /* Show the original service error below. */ }
+      }
       if (error instanceof DOMException && error.name === "AbortError") {
         // Navigation cancellation must not replace the status of a new request.
         if (controller.current?.signal.aborted) setStatus("Audio request stopped. Tap Listen to retry.");
@@ -165,7 +184,7 @@ export default function VoiceGuide(props: Props) {
   useEffect(() => {
     clearAudio();
     setStatus("");
-    if (props.suspended || !loaded || (!enabled && !props.conversation) || !requestKey || !code || (isNativeAndroid() && !url)) return;
+    if (props.suspended || !loaded || (!enabled && !props.conversation) || !requestKey || (!isNativeAndroid() && !code)) return;
     const key = requestKey + url + code + props.sessionId;
     if (autoKey.current === key) return;
     autoKey.current = key;

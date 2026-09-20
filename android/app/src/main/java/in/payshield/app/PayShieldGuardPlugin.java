@@ -12,6 +12,8 @@ import android.os.Looper;
 import android.speech.SpeechRecognizer;
 import android.speech.RecognitionListener;
 import android.media.MediaPlayer;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.util.Base64;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -37,7 +39,7 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.concurrent.Executor;
 
-@CapacitorPlugin(name = "PayShieldGuard", permissions = { @Permission(alias = "microphone", strings = { Manifest.permission.RECORD_AUDIO }) })
+@CapacitorPlugin(name = "PayShieldGuard", permissions = { @Permission(alias = "microphone", strings = { Manifest.permission.RECORD_AUDIO }), @Permission(alias = "camera", strings = { Manifest.permission.CAMERA }) })
 public class PayShieldGuardPlugin extends Plugin {
     private volatile long lastStrongAuthenticationAt = 0L;
     private boolean authenticationPending = false;
@@ -45,6 +47,42 @@ public class PayShieldGuardPlugin extends Plugin {
     private PluginCall speechCall;
     private MediaPlayer player;
     private PluginCall audioCall;
+    private TextToSpeech speechOutput;
+    private PluginCall outputCall;
+    @PluginMethod
+    public void cameraPermission(PluginCall call) {
+        if (getPermissionState("camera") == PermissionState.GRANTED) { call.resolve(); return; }
+        requestPermissionForAlias("camera", call, "cameraPermissionResult");
+    }
+    @PermissionCallback
+    private void cameraPermissionResult(PluginCall call) {
+        if (getPermissionState("camera") == PermissionState.GRANTED) call.resolve();
+        else call.reject("Camera access denied. Enable Camera in Android Settings > Apps > PayShield > Permissions, then retry.");
+    }
+    private void finishOutput(String error) {
+        PluginCall pending = outputCall; outputCall = null;
+        if (speechOutput != null) { speechOutput.stop(); speechOutput.shutdown(); speechOutput = null; }
+        if (pending != null) { if (error == null) pending.resolve(); else pending.reject(error); }
+    }
+    @PluginMethod
+    public void speak(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            finishOutput("Speech replaced."); outputCall = call;
+            speechOutput = new TextToSpeech(getContext(), status -> mainHandler.post(() -> {
+                if (outputCall != call || speechOutput == null) return;
+                if (status != TextToSpeech.SUCCESS) { finishOutput("Android speech output unavailable. Enable a text-to-speech engine in phone settings."); return; }
+                int language = speechOutput.setLanguage(new Locale("en", "IN"));
+                if (language < 0) language = speechOutput.setLanguage(Locale.US);
+                if (language < 0) { finishOutput("Install English text-to-speech voice data in Android settings."); return; }
+                speechOutput.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    public void onStart(String id) {}
+                    public void onDone(String id) { mainHandler.post(() -> { if (outputCall == call) finishOutput(null); }); }
+                    public void onError(String id) { mainHandler.post(() -> { if (outputCall == call) finishOutput("Android speech playback failed."); }); }
+                });
+                if (speechOutput.speak(call.getString("text", ""), TextToSpeech.QUEUE_FLUSH, null, "payshield") == TextToSpeech.ERROR) finishOutput("Could not start Android speech output.");
+            }));
+        });
+    }
     private File audioFile;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable speechTimeout = () -> finishSpeech(null, "Listening timed out. Try again.");
@@ -76,7 +114,7 @@ public class PayShieldGuardPlugin extends Plugin {
             recognizer.setRecognitionListener(new RecognitionListener() {
                 public void onReadyForSpeech(Bundle b) {} public void onBeginningOfSpeech() {} public void onRmsChanged(float r) {}
                 public void onBufferReceived(byte[] b) {} public void onEndOfSpeech() {} public void onPartialResults(Bundle b) {} public void onEvent(int t, Bundle b) {}
-                public void onError(int error) { finishSpeech(null, "Could not hear your response (" + error + "). Please try again."); }
+                public void onError(int error) { finishSpeech(null, error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ? "Enable Microphone in Android Settings > Apps > PayShield > Permissions." : error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ? "Speech recognition needs a working internet connection. Check your connection and retry." : error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ? "Microphone is busy. Close other recording apps and retry." : "No clear speech received. Tap voice and speak after the microphone starts. (Code " + error + ")"); }
                 public void onResults(Bundle result) { ArrayList<String> values = result.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION); if (values == null || values.isEmpty()) finishSpeech(null, "No speech recognized."); else finishSpeech(values.get(0), null); }
             });
             Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
@@ -107,7 +145,7 @@ public class PayShieldGuardPlugin extends Plugin {
         });
     }
     @PluginMethod
-    public void stopAudio(PluginCall call) { getActivity().runOnUiThread(() -> { finishAudio("Playback stopped."); call.resolve(); }); }
+    public void stopAudio(PluginCall call) { getActivity().runOnUiThread(() -> { finishAudio("Playback stopped."); finishOutput("Speech stopped."); call.resolve(); }); }
     @PluginMethod
     public void cancelListening(PluginCall call) { getActivity().runOnUiThread(() -> { finishSpeech(null, "Listening cancelled."); call.resolve(); }); }
     @PluginMethod

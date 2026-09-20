@@ -1,6 +1,8 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 
 type NativeGuard = {
+  cameraPermission(): Promise<void>;
+  speak(options: { text: string }): Promise<void>;
   listen(): Promise<{ transcript: string }>;
   playAudio(options: { base64: string }): Promise<void>;
   stopAudio(): Promise<void>;
@@ -11,6 +13,8 @@ type NativeGuard = {
 };
 
 const NativeGuard = registerPlugin<NativeGuard>("PayShieldGuard");
+export const requestCameraPermission = () => isNativeAndroid() ? NativeGuard.cameraPermission() : Promise.resolve();
+export const speakNative = (text: string) => NativeGuard.speak({ text });
 
 export const isNativeAndroid = () => Capacitor.getPlatform() === "android";
 export const playNativeAudio = (base64: string) => NativeGuard.playAudio({ base64 });

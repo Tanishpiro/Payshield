@@ -102,7 +102,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
 
   async function captureVoice() {
     if (listening) return;
-    if (!sessionStorage.getItem('ps-voice-code')) { setError('Open Voice settings and enter your access code to enable spoken payment approval.'); return; }
+    if (!isNativeAndroid() && !sessionStorage.getItem('ps-voice-code')) { setError('Open Voice settings and enter your access code to enable spoken payment approval.'); return; }
     const id = ++session.current;
     setVoicePayment(true);setRes(null);setStep('scan');
     setListening(true);

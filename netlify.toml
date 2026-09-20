@@ -14,5 +14,16 @@ status = 200
 
 [[redirects]]
 from = "/investigator"
+to = "/investigation"
+status = 301
+force = true
+
+[[redirects]]
+from = "/investigation"
 to = "/investigator.html"
+status = 200
+
+[[redirects]]
+from = "/dashboard"
+to = "/dashboard.html"
 status = 200

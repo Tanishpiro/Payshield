@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "../components/scam-report.css";
 @import "../components/payment-actions.css";
+@import "../components/qr-scanner.css";
 
 :root {
   color-scheme: dark;
