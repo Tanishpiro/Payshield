@@ -13,7 +13,11 @@ type Props = {
   score?: number;
   synthetic: boolean;
   reasonCodes: string[];
+  requestApproval?: boolean;
+  onNarrationEnded?: () => void;
 };
+
+const DEPLOYED_BACKEND = "https://payshield-ai-police.netlify.app";
 
 export default function VoiceGuide(props: Props) {
   const [url, setUrl] = useState("");
@@ -30,7 +34,7 @@ export default function VoiceGuide(props: Props) {
 
   useEffect(() => {
     try {
-      setUrl(localStorage.getItem("ps-voice-url") || "");
+      setUrl(localStorage.getItem("ps-voice-url") || (isNativeAndroid() ? DEPLOYED_BACKEND : ""));
       setCode(sessionStorage.getItem("ps-voice-code") || "");
       setEnabled(localStorage.getItem("ps-voice-enabled") === "true");
     } catch { /* Storage may be unavailable; session input still works. */ }
@@ -76,6 +80,7 @@ export default function VoiceGuide(props: Props) {
   const request: NarrationRequest | null = event && props.score !== undefined ? {
     event, amount: props.amount, receiver: props.receiver.slice(0, 80), score: props.score,
     synthetic: props.synthetic, reasonCodes: props.reasonCodes.slice(0, 8),
+    requestApproval: Boolean(props.requestApproval),
   } : null;
   const requestKey = request ? JSON.stringify(request) : "";
 
@@ -181,7 +186,10 @@ export default function VoiceGuide(props: Props) {
       <button className="ps-secondary" disabled={busy || props.suspended} onClick={() => request && void play(request)}>{busy ? "Preparing audio…" : "Listen / replay"}</button>
       <button className="ps-secondary" onClick={() => { stop(); setStatus("Playback stopped."); }}>Stop</button>
     </div>}
-    <audio ref={audio} controls preload="none" aria-label="PayShield spoken guidance" onEnded={() => setStatus("Finished speaking.")} onError={() => setStatus("Audio could not play. Try again.")}/>
+    <audio ref={audio} controls preload="none" aria-label="PayShield spoken guidance" onEnded={() => {
+      setStatus(props.requestApproval ? "Listening for approve or cancel…" : "Finished speaking.");
+      if (event === "result" && props.requestApproval) props.onNarrationEnded?.();
+    }} onError={() => setStatus("Audio could not play. Try again.")}/>
     <p className="ps-muted" aria-live="polite">{status}</p>
     {settingsVisible && <p className="ps-muted">When used, the payment amount, display name and risk summary are sent to ElevenLabs for speech. Voice playback never approves a payment.</p>}
   </section>;

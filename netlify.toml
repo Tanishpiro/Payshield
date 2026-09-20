@@ -1,0 +1,8 @@
+[build]
+publish = "netlify-static"
+functions = "netlify/functions"
+
+[[redirects]]
+from = "/api/voice"
+to = "/.netlify/functions/voice"
+status = 200

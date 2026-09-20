@@ -2,11 +2,13 @@
 
 The backend keeps the ElevenLabs API key in ignored `.env.local`. Never place it in the APK or a NEXT_PUBLIC variable. Rotate the key shared in chat before broader use. Sarah is the initial voice; set ELEVENLABS_VOICE_ID to change it.
 
+Production backend: https://payshield-ai-police.netlify.app
+
 ## Start
 
 Run `powershell -ExecutionPolicy Bypass -File scripts/start-voice-local.ps1` from this project. Visit http://localhost:3010/pay for browser testing. Leave the backend URL blank in browser Voice settings.
 
-For Android, install PayShield-latest.apk (2.2), enable USB debugging, connect your phone and accept its USB authorization prompt. The script forwards port 3010. If you connect later, run:
+For Android, install PayShield-latest.apk (2.3). For the deployed backend, set Voice settings URL to `https://payshield-ai-police.netlify.app`; USB is not needed. For local testing, enable USB debugging, connect your phone and accept its USB authorization prompt. The script forwards port 3010. If you connect later, run:
 
 ```powershell
 & 'C:\Android\android-sdk\platform-tools\adb.exe' reverse tcp:3010 tcp:3010

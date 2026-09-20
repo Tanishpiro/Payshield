@@ -5,6 +5,7 @@ export type NarrationRequest = {
   score?: number;
   synthetic?: boolean;
   reasonCodes?: string[];
+  requestApproval?: boolean;
 };
 
 const explanations: Record<string, string> = {
@@ -39,6 +40,7 @@ export function buildNarration(value: unknown): string {
   if (typeof body.score !== "number" || !Number.isInteger(body.score) || body.score < 0 || body.score > 100)
     throw new Error("Invalid risk score.");
   if (typeof body.synthetic !== "boolean") throw new Error("Missing payment mode.");
+  if (body.requestApproval !== undefined && typeof body.requestApproval !== "boolean") throw new Error("Invalid approval mode.");
   if (typeof body.receiver !== "string" || body.receiver.length > 80) throw new Error("Invalid receiver name.");
   if (body.reasonCodes !== undefined && (!Array.isArray(body.reasonCodes) || body.reasonCodes.length > 8 || body.reasonCodes.some(x => typeof x !== "string" || x.length > 50)))
     throw new Error("Invalid risk reasons.");
@@ -56,6 +58,7 @@ export function buildNarration(value: unknown): string {
     `You are paying ${amount} rupees to ${receiver}. The risk score is ${body.score} out of 100, which is ${level} risk.`,
     body.synthetic ? "" : reason,
     body.score > 30 ? "Review the warning before continuing." : "",
+    body.requestApproval ? "Say approve to continue with fingerprint or strong face verification, or say cancel to stop." : "",
     "If you choose to continue, confirm with your strong face or fingerprint.",
   ].filter(Boolean).join(" ");
 }

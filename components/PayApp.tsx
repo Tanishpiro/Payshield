@@ -35,14 +35,15 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   const acceptVoiceIntent = useCallback((transcript: string) => {
     const intent = parseVoicePayment(transcript);
     if (!intent) throw new Error('Say: “Send 2,000 rupees from HDFC Bank to Suresh.”');
-    setHandle(resolveReceiver(intent.receiver, handles));
+    const resolvedHandle = resolveReceiver(intent.receiver, handles);
+    setHandle(resolvedHandle);
     setAmount(String(intent.amount));
     setBank(intent.bank);
     setVoiceText(intent.transcript);
     setVoicePayment(true);
     setInputMode("voice");
-    setStep("amount");
-  }, [handles]);
+    void analyseValues(resolvedHandle, intent.amount, "voice");
+  }, [handles, analyseFn]);
 
   useEffect(() => {
     const acceptUrl = (value: string) => {
@@ -58,9 +59,8 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     return () => { listener.then((handle) => handle.remove()); };
   }, [acceptVoiceIntent]);
 
-  async function analyse() {
-    const value = Number(amount);
-    if (!handle.trim() || !Number.isFinite(value) || value <= 0 || value > 200000) {
+  async function analyseValues(nextHandle: string, value: number, mode: "manual" | "qr" | "voice") {
+    if (!nextHandle.trim() || !Number.isFinite(value) || value <= 0 || value > 200000) {
       setError("Enter an amount between ₹1 and ₹2,00,000.");
       return;
     }
@@ -68,10 +68,10 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     setStep("analysing");
     const t0 = Date.now();
     const r = analyseFn
-      ? await analyseFn(handle, Number(amount), inputMode).catch(() => null)
+      ? await analyseFn(nextHandle, value, mode).catch(() => null)
       : await fetch("/api/risk", {
           method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ handle, amount: Number(amount), sender: "mobile@payshield", inputMode }),
+          body: JSON.stringify({ handle: nextHandle, amount: value, sender: "mobile@payshield", inputMode: mode }),
         }).then((x) => x.json()).catch(() => null);
     setTimeout(() => {
       if (!r?.assessment) {
@@ -82,6 +82,8 @@ export default function PayApp({ handles, analyse: analyseFn }: {
       setRes(r); setStep("result");
     }, Math.max(0, 1600 - (Date.now() - t0)));
   }
+
+  async function analyse() { await analyseValues(handle, Number(amount), inputMode); }
 
   function reset() { setStep("scan"); setHandle(""); setAmount(""); setRes(null); setBank(""); setVoicePayment(false); setVoiceText(""); setError(""); setInputMode("manual"); }
 
@@ -131,6 +133,19 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     }
   }
 
+  async function captureVoiceApproval() {
+    if (listening || step !== "result" || !voicePayment || !a) return;
+    setListening(true);
+    setError("");
+    try {
+      const answer = (await listenForPayment()).trim().toLowerCase();
+      if (/\b(approve|approved|yes|confirm|continue|proceed)\b/.test(answer)) await authorizePayment();
+      else if (/\b(cancel|stop|no|reject)\b/.test(answer)) reset();
+      else setError('Please say “approve” to open fingerprint verification, or “cancel”.');
+    } catch (e) { setError(e instanceof Error ? e.message : "Voice approval was not recognised."); }
+    finally { setListening(false); }
+  }
+
   const a = res?.assessment;
   const meta = a ? LEVEL_META[a.level as RiskLevel] : null;
 
@@ -178,7 +193,9 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     {error && <p className="ps-error" role="alert">{error}</p>}
     <VoiceGuide stage={step} suspended={scanner || listening} amount={a?.amount ?? Number(amount)}
       receiver={res?.receiver?.display_name ?? name} score={a?.score}
-      synthetic={Boolean(a?.synthetic)} reasonCodes={(a?.reasons ?? []).map((r: { code: string }) => r.code)} />
+      synthetic={Boolean(a?.synthetic)} reasonCodes={(a?.reasons ?? []).map((r: { code: string }) => r.code)}
+      requestApproval={voicePayment && step === "result" && a?.action !== "block" && a?.score <= 90}
+      onNarrationEnded={captureVoiceApproval} />
     <footer className="ps-footer"><Logo size={18}/> Protected by PayShield</footer>
     </main>
     {step === "scan" && <div className="ps-dock"><button onClick={() => setScanner(true)}><Icon kind="qr"/> Scan any UPI QR</button></div>}

@@ -6,3 +6,6 @@ android/app/build
 android/local.properties
 .env*
 !.env.example
+
+# Local Netlify folder
+.netlify
