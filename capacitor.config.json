@@ -1,0 +1,10 @@
+{
+  "appId": "in.payshield.app",
+  "appName": "PayShield",
+  "webDir": "android-www",
+  "android": { "allowMixedContent": false },
+  "server": { "androidScheme": "https" },
+  "plugins": {
+    "SplashScreen": { "backgroundColor": "#070b14", "launchAutoHide": true }
+  }
+}
