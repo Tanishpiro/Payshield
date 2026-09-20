@@ -23,7 +23,8 @@ function narration(body) {
   const receiver = body.receiver.replace(/[^\p{L}\p{N} .'-]/gu, "").trim() || "the receiver";
   const amount = body.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 });
   if (body.score > 90) return `Payment blocked. The risk score for ${receiver} is ${body.score} out of 100. PayShield will not continue this payment.`;
-  if (body.event === "complete") return body.synthetic ? `Demo complete for ${amount} rupees. No real money was transferred.` : `The payment request for ${amount} rupees has been handed to your UPI app. Check your bank's confirmation. PayShield has not confirmed a transfer.`;
+  if (body.event === "complete") return body.synthetic ? "Demo payment successful. No real money was transferred." : `The payment request for ${amount} rupees has been handed to your UPI app. Check your bank's confirmation. PayShield has not confirmed a transfer.`;
+  if (body.requestApproval) return `OK. Their risk score is ${body.score} out of 100. Say approve to approve the payment, or say cancel to cancel it.`;
   const level = body.score <= 30 ? "low" : body.score <= 70 ? "medium" : "high";
   const reason = Array.isArray(body.reasonCodes) ? body.reasonCodes.slice(0, 8).map(x => allowedReasons[x]).find(Boolean) : "";
   return [body.synthetic ? "This is a prototype payment with a fixed demo score. No real funds will move." : "", `You are paying ${amount} rupees to ${receiver}. The risk score is ${body.score} out of 100, which is ${level} risk.`, body.synthetic ? "" : reason, body.requestApproval ? "Say approve to continue with fingerprint or strong face verification, or say cancel to stop." : "", "Biometric verification is required before continuing."].filter(Boolean).join(" ");

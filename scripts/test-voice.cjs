@@ -10,6 +10,7 @@ function load(entry) {
 const { buildNarration } = load('lib/narration.ts');
 const sample = { event: 'result', amount: 2000, receiver: 'Suresh', score: 10, synthetic: true };
 assert.match(buildNarration(sample), /fixed demo score/);
+assert.equal(buildNarration({...sample,requestApproval:true}), 'OK. Their risk score is 10 out of 100. Say approve to approve the payment, or say cancel to cancel it.');
 assert.match(buildNarration({ ...sample, score: 80 }), /high risk/);
 assert.match(buildNarration({ ...sample, score: 91, event: 'complete' }), /^Payment blocked/);
 assert.match(buildNarration({ ...sample, event: 'complete' }), /No real money was transferred/);

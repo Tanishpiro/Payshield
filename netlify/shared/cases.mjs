@@ -1,5 +1,6 @@
 import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { normalizeReceiver, hydrate } from './workflow.mjs';
 
 export const FACTORS = {
  AGE_VERY_NEW: 'New receiver account', AGE_NEW: 'Recently opened account', KYC_NONE: 'Identity verification incomplete', KYC_PARTIAL: 'Identity partially verified',
@@ -21,7 +22,7 @@ export function makeCase(body) {
    phoneNumber: '+91 XXXXX XX042 (dummy, non-dialable)', kycStatus: 'Demo KYC: partially verified', kycName: 'Example Receiver 042 (fictional)',
    kycDocument: 'DEMO-KYC-0042 (not a government identifier)', kycAddress: '42 Example Lane, Demo District, New Delhi (fictional)',
    limitations: 'Payment identifiers do not expose remote MAC addresses or KYC records. Real records require authorized partner evidence.' };
- return { summary, investigation };
+ return hydrate({ summary, investigation, receiverId: normalizeReceiver(body.receiverId) });
 }
 const secret = () => process.env.PAYSHIELD_CASE_SESSION_SECRET;
 export function issueSession() {

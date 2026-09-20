@@ -49,8 +49,9 @@ export function buildNarration(value: unknown): string {
   // Never announce completion or verification for a blocked score, even with a forged event.
   if (body.score > 90) return `Payment blocked. The risk score for ${receiver} is ${body.score} out of 100. PayShield will not continue this payment.`;
   if (body.event === "complete") return body.synthetic
-    ? `Demo complete for ${amount} rupees. No real money was transferred.`
+    ? "Demo payment successful. No real money was transferred."
     : `The payment request for ${amount} rupees has been handed to your UPI app. Complete authorization there and check your bank's confirmation. PayShield has not confirmed a transfer.`;
+  if (body.requestApproval) return `OK. Their risk score is ${body.score} out of 100. Say approve to approve the payment, or say cancel to cancel it.`;
   const level = body.score <= 30 ? "low" : body.score <= 70 ? "medium" : "high";
   const reason = (body.reasonCodes as string[] | undefined)?.map(code => explanations[code]).find(Boolean) ?? "";
   return [

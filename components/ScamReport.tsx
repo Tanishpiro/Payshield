@@ -4,11 +4,11 @@ import './scam-report.css';
 import { CapacitorHttp } from '@capacitor/core';
 import { isNativeAndroid, shareNativeReport } from '@/lib/native';
 
-export default function ScamReport({ assessment, mode }: { assessment: any; mode: string }) {
+export default function ScamReport({ assessment, mode, receiverId }: { assessment: any; mode: string; receiverId: string }) {
  const [category,setCategory]=useState('suspicious-request'),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [receipt,setReceipt]=useState<any>(null);
  async function submit(){setBusy(true);setError('');try{
-   const body={amount:assessment.amount,score:assessment.score,mode,category,vpn:assessment.reportVpn??'unknown',basis:assessment.scoreBasis?.includes('number')?'number':assessment.scoreBasis?.includes('qr')?'qr':'risk-engine',reasonCodes:(assessment.reasons??[]).slice(0,8).map((r:any)=>r.code)};
+   const body={receiverId,amount:assessment.amount,score:assessment.score,mode,category,vpn:assessment.reportVpn??'unknown',basis:assessment.scoreBasis?.includes('number')?'number':assessment.scoreBasis?.includes('qr')?'qr':'risk-engine',reasonCodes:(assessment.reasons??[]).slice(0,8).map((r:any)=>r.code)};
    const url='https://payshield-ai-police.netlify.app/api/cases?action=report';let data;
    if(isNativeAndroid()){const r=await CapacitorHttp.post({url,headers:{'Content-Type':'application/json'},data:body});if(r.status!==201)throw Error(r.data?.error||'Could not file the report.');data=r.data;}
    else{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});data=await r.json();if(!r.ok)throw Error(data.error);}

@@ -11,6 +11,7 @@ import { listenForPayment, verifyOwner, cancelListening, stopNativeAudio, isNati
 import { App } from "@capacitor/app";
 import VoiceGuide from "./VoiceGuide";
 import ScamReport from "./ScamReport";
+import { applyCaseReputation } from '@/lib/case-reputation';
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 const STEPS = ["Resolving receiver", "Account age & KYC", "Transaction velocity", "Fraud complaint history", "Device & network links", "Scoring"];
@@ -77,12 +78,13 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     setError("");
     setStep("analysing");
     const t0 = Date.now();
-    const r = analyseFn
+    let r = analyseFn
       ? await analyseFn(nextHandle, value, mode).catch(() => null)
       : await fetch("/api/risk", {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ handle: nextHandle, amount: value, sender: "mobile@payshield", inputMode: mode }),
         }).then((x) => x.json()).catch(() => null);
+    if(r?.assessment){try{r={...r,assessment:await applyCaseReputation(r.receiver?.handle||nextHandle,r.assessment)};}catch(e){if(id!==session.current)return;setError(e instanceof Error?e.message:'Case check failed.');setStep('amount');return;}}
     setTimeout(() => {
       if (id !== session.current) return;
       if (!r?.assessment) {
@@ -133,8 +135,14 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     if (needsOwnerCheck) {
       setStep("authenticating");
       try {
+        const checked = await applyCaseReputation(res.receiver.handle || handle, a);
+        if (id !== session.current) { authorizing.current=false; return; }
+        if (checked.score>90 || checked.action==='block') { setRes({...res,assessment:checked});setStep('result');authorizing.current=false;return; }
         const ok = await verifyOwner(`Confirm ${inr(Number(amount))} to ${res.receiver.display_name}`);
         if (!ok) throw new Error("Identity verification was not completed.");
+        const finalCheck = await applyCaseReputation(res.receiver.handle || handle, a);
+        if (id !== session.current) { authorizing.current=false; return; }
+        if (finalCheck.score>90 || finalCheck.action==='block') { setRes({...res,assessment:finalCheck});setStep('result');authorizing.current=false;return; }
         if (id !== session.current) { authorizing.current = false; return; }
       } catch (e) {
         if (id !== session.current) { authorizing.current = false; return; }
@@ -147,6 +155,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     try {
       // This build is a payment simulator. No UPI handoff or real transfer is attempted.
       setStep("paid");
+      window.scrollTo({top:0,behavior:'instant'});
     } catch (e) {
       setError(e instanceof Error ? e.message : "No compatible UPI app is available.");
       setStep("result");
@@ -178,8 +187,8 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     {scanner && <QrScanner onScan={acceptQr} onClose={() => setScanner(false)} />}
     <header className="ps-header"><div className="ps-brand"><Logo size={32}/><div><strong>PayShield</strong><small>Every payment. Protected.</small></div></div><span className="ps-tag">PROTOTYPE</span></header>
     <main className="ps-content">
-    {voicePayment && <section className="ps-card ps-conversation" aria-live="polite"><Icon kind="mic"/><h1>{listening?'Listening…':step==='analysing'?'Checking your payment…':step==='paid'?'Demo successful':step==='authenticating'?'Confirm your fingerprint':'Voice payment'}</h1><p>{voiceText || 'Say: Send 2000 rupees from HDFC to Suresh.'}</p>{a&&<p>{inr(a.amount)} · Risk {a.score}/100 · {a.score>90?'Payment blocked':'No real funds move'}</p>}{step==='result'&&a?.score<=90&&<button className="ps-secondary" disabled={listening} onClick={captureVoiceApproval}>Say approve or cancel</button>}<button className="ps-secondary" onClick={reset}>{step==='paid'?'Back to payments':'Cancel voice payment'}</button></section>}
-    <div className="ps-payment-panels" hidden={voicePayment}>
+    {voicePayment && step !== 'paid' && <section className="ps-card ps-conversation" aria-live="polite"><Icon kind="mic"/><h1>{listening?'Listening…':step==='analysing'?'Checking your payment…':step==='authenticating'?'Confirm your fingerprint':'Voice payment'}</h1><p>{voiceText || 'Say: Send 2000 rupees from HDFC to Suresh.'}</p>{a&&<p>{inr(a.amount)} · Risk {a.score}/100 · {a.score>90?'Payment blocked':'No real funds move'}</p>}{step==='result'&&a?.score<=90&&<button className="ps-secondary" disabled={listening} onClick={captureVoiceApproval}>Say approve or cancel</button>}<button className="ps-secondary" onClick={reset}>Cancel voice payment</button></section>}
+    <div className="ps-payment-panels" hidden={voicePayment && step !== 'paid'}>
     {step === "scan" && <>
       <section className="ps-hero"><span className="ps-eyebrow">PAY WITH PEACE OF MIND</span><h1>Your money.<br/>An extra layer of care.</h1><p>AI Police checks the receiver before you pay.</p><span className="ps-protection">● Protection is on</span><div className="ps-hero-symbol"><Icon kind="shield"/></div></section>
       <section className="ps-card"><div className="ps-title"><h2>Transfer money</h2><span>Simple & secure</span></div>
@@ -219,7 +228,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
         <button className="ps-secondary" onClick={reset}>Cancel payment</button>
       </section>
     </>}
-    {step === "paid" && <section className="ps-card ps-status"><div className="ps-success">✓</div><h1>{a?.synthetic ? "Demo complete" : "Ready in your UPI app"}</h1><strong className="ps-paid-amount">{inr(Number(amount))}</strong><p className="ps-handle">{handle}</p><p>{a?.synthetic ? "Your prototype payment is complete. No real money was transferred." : "Finish authorizing the payment in your UPI app. Your bank will confirm its status."}</p><button className="ps-primary" onClick={reset}>Back to payments</button></section>}
+    {step === "paid" && <section className="ps-card ps-status"><div className="ps-success">✓</div><h1>{a?.synthetic ? "Demo payment successful" : "Ready in your UPI app"}</h1><strong className="ps-paid-amount">{inr(Number(amount))}</strong><p className="ps-handle">{handle}</p><p>{a?.synthetic ? "Your prototype payment is complete. No real money was transferred." : "Finish authorizing the payment in your UPI app. Your bank will confirm its status."}</p><button className="ps-primary" onClick={reset}>Back to payments</button></section>}
     </div>
     {error && <p className="ps-error" role="alert">{error}</p>}
     <VoiceGuide stage={step} conversation={voicePayment} sessionId={sessionId} suspended={scanner || listening} amount={a?.amount ?? Number(amount)}
@@ -227,7 +236,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
       synthetic={Boolean(a?.synthetic)} reasonCodes={(a?.reasons ?? []).map((r: { code: string }) => r.code)}
       requestApproval={voicePayment && step === "result" && a?.action !== "block" && a?.score <= 90}
       onNarrationEnded={captureVoiceApproval} />
-    {a && (step === 'result' || step === 'paid') && <ScamReport key={sessionId+'-'+handle+'-'+amount} assessment={a} mode={inputMode} />}
+    {a && step === 'paid' && <ScamReport key={sessionId+'-'+handle+'-'+amount} assessment={a} mode={inputMode} receiverId={res?.receiver?.handle || handle} />}
     <footer className="ps-footer"><Logo size={18}/> Protected by PayShield</footer>
     </main>
     {step === "scan" && !voicePayment && <div className="ps-dock"><button onClick={() => setScanner(true)}><Icon kind="qr"/> Scan any UPI QR</button></div>}
