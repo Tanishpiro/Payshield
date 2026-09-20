@@ -30,6 +30,12 @@ Hardware microphone, fingerprint and face checks require testing on an Android d
 
 ### Android v2.7 additions
 
+### v2.8 case submission and shared updates
+
+Create scam report now opens a confirmation step with a Submit case action. Submitted demo cases enter the authenticated investigator New cases inbox, which refreshes every 30 seconds while visible or on manual refresh. Once an investigation note or decision is recorded, the case is no longer New; existing case-number lookup still opens its full history. The demo inbox is bounded to 500 reports and explicitly errors above that limit rather than silently omitting cases.
+
+Investigators can opt a new note into sender visibility using the checkbox next to the note form. Only these deliberately shared note texts appear in Track case; old/private notes still return generic activity labels. Shared notes are visible to anyone holding the case reference, so investigators must not include private evidence. The underlying dossier and investigator identity are never exposed by progress lookup. This extends the v2.7 fixed-label-only response with an optional `note` field on shared timeline events.
+
 Home now includes a collapsible Track case card. The public POST `action=progress` endpoint accepts a full random case number and returns only fixed status labels, dates, generic activity and a fixed closure outcome. It never returns investigator text, actor identity, receiver ID, transaction amount or the private dossier. Anyone holding the case reference can read this limited synthetic status; keep case numbers private. This is not authenticated sender access for a production service.
 
 Voice settings include Save voice code on this phone. Android encrypts the backend access token using an Android Keystore AES-GCM key and stores only ciphertext/IV in app-private preferences. It loads on app restart; clearing and saving removes it. Provider API keys remain server-side. Reinstalling or clearing app data may require setup again. Browser storage remains session-only. Device testing is still required to validate persistence on a physical phone.

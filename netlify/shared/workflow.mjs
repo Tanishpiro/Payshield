@@ -23,6 +23,7 @@ export function transition(record, action, body, actor, now = new Date().toISOSt
  if (typeof body.text !== 'string' || body.text.trim().length < (action==='note'?1:15) || body.text.length>2000) throw Error('Add a note, or at least 15 characters explaining your decision (maximum 2000).');
  if(next.timeline.length>=200)throw Error('This demo case has reached its 200-event history limit.');
  const event={id:randomUUID(),kind:action,at:now,actor,text:body.text.trim()};
+ if(action==='note')event.senderVisible=body.senderVisible===true;
  if(action==='close'){
    if(next.state==='closed')throw Error('Case is already closed. Reopen it before changing the decision.');
    if(!Object.hasOwn(OUTCOMES,body.outcome))throw Error('Select a closure outcome.');

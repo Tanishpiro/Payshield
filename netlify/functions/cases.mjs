@@ -18,6 +18,13 @@ export default async (req) => {
    const token=(req.headers.get('cookie')||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookie+'='))?.slice(cookie.length+1)||'';
    if(!validSession(token))return reply({error:'Sign in to view case details.'},401);
    if(action==='session')return reply({authenticated:true});
+   if(action==='inbox'){
+    const store=getStore({name:'payshield-demo-cases',consistency:'strong'});
+    const list=await store.list({prefix:'PS-'});
+    if(list.blobs.length>500)return reply({error:'Demo inbox limit reached. Use case-number lookup.'},409);
+    const records=await Promise.all(list.blobs.map(b=>readCase(store,b.key)));
+    return reply({cases:records.filter(Boolean).map(({record:r})=>({caseNumber:r.summary.caseNumber,createdAt:r.summary.createdAt,status:r.state==='closed'?'Closed':r.timeline.length>1?'Under review':'New',category:r.summary.category})).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))});
+   }
    const id=url.searchParams.get('id');if(!/^PS-[A-F0-9]{16}$/.test(id||''))return reply({error:'Enter the case number printed on your PDF.'},400);
    const store=getStore({name:'payshield-demo-cases',consistency:'strong'});
    const found=await readCase(store,id);if(!found)return reply({error:'Case not found. Check the case number.'},404);
