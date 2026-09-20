@@ -5,7 +5,7 @@ let minute=0, writes=0;
 export default async (req) => {
  const origin=req.headers.get('origin'); const own='https://payshield-ai-police.netlify.app';
  const h=new Headers({'Cache-Control':'no-store','Vary':'Origin','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','X-Content-Type-Options':'nosniff'});
- if(origin && ![own,'https://localhost','http://localhost:3010','http://127.0.0.1:3010'].includes(origin)) return new Response(null,{status:403});
+ if(origin && ![own,'https://localhost','http://localhost:3000','http://127.0.0.1:3000','http://localhost:3010','http://127.0.0.1:3010'].includes(origin)) return new Response(null,{status:403});
  if(origin)h.set('Access-Control-Allow-Origin',origin);
  const reply=(data,status=200)=>Response.json(data,{status,headers:h});
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:h});

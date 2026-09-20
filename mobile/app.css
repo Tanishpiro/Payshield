@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../components/scam-report.css";
 
 :root {
   color-scheme: dark;

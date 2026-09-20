@@ -1,0 +1,8 @@
+.ps-pay .ps-report { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ps-report h2 { font-size: 17px; font-weight: 650; }
+.ps-report .ps-label { margin: 4px 0 -4px; }
+.ps-report select { display: block; width: 100%; min-width: 0; min-height: 48px; padding: 12px; border: 1px solid #cbd9eb; border-radius: 10px; background: #f6f9ff; color: #172c49; font: inherit; font-size: 14px; }
+.ps-report select:focus-visible { outline: 3px solid #73adff; outline-offset: 3px; }
+.ps-report .ps-secondary { display: block; width: 100%; padding: 12px 16px; }
+.ps-report ul { margin: 0; padding-left: 20px; font-size: 12px; }
+.ps-report p, .ps-report strong { overflow-wrap: anywhere; }
