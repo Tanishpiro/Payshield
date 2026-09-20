@@ -11,6 +11,7 @@ import { listenForPayment, verifyOwner, cancelListening, stopNativeAudio, isNati
 import { App } from "@capacitor/app";
 import VoiceGuide from "./VoiceGuide";
 import ScamReport from "./ScamReport";
+import CaseTracker from './CaseTracker';
 import { applyCaseReputation } from '@/lib/case-reputation';
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
@@ -204,6 +205,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
       </div></section>
       <button className="ps-voice" onClick={captureVoice}><span className="ps-voice-icon"><Icon kind="mic"/></span><span><strong>Just say it. We’ll check it.</strong><small>Voice + face or fingerprint</small></span><Icon kind="arrow"/></button>
       <section className="ps-card"><div className="ps-title"><h2>Try a receiver</h2><span>AI Police demo</span></div><div className="ps-receivers">{handles.map((h,i) => <button key={h.handle} onClick={() => pick(h.handle)}><span className={"ps-avatar tone-"+i%3}>{h.name[0]}</span><span><strong>{h.name}</strong><small>{h.handle}</small></span><Icon kind="arrow"/></button>)}</div>{!handles.length && <p className="ps-muted">Enter a number above to try a payment.</p>}</section>
+      <CaseTracker />
       <p className="ps-note">Number demos: 10/100 · QR demos: 80/100<br/>Synthetic payments don’t move real money.</p>
     </>}
     {step === "amount" && <>

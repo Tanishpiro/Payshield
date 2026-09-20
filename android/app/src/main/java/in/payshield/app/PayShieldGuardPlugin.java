@@ -6,6 +6,13 @@ import android.content.Intent;
 import android.net.Uri;
 import android.speech.RecognizerIntent;
 import android.Manifest;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
+import java.security.KeyStore;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -43,6 +50,42 @@ import java.util.concurrent.Executor;
 public class PayShieldGuardPlugin extends Plugin {
     private volatile long lastStrongAuthenticationAt = 0L;
     private boolean authenticationPending = false;
+    private SecretKey voiceStorageKey() throws Exception {
+        KeyStore store = KeyStore.getInstance("AndroidKeyStore"); store.load(null);
+        String alias = "payshield.voice.access";
+        if (!store.containsAlias(alias)) {
+            KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+            generator.init(new KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT).setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build());
+            generator.generateKey();
+        }
+        return (SecretKey) store.getKey(alias, null);
+    }
+    @PluginMethod
+    public void saveVoiceCode(PluginCall call) {
+        try {
+            String code = call.getString("code", "");
+            android.content.SharedPreferences prefs = getContext().getSharedPreferences("ps_voice_secure", 0);
+            if (code.isEmpty()) { if (!prefs.edit().clear().commit()) throw new Exception(); call.resolve(); return; }
+            if (code.length() < 24 || code.length() > 512) { call.reject("Enter a valid backend voice access code, not the ElevenLabs API key."); return; }
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, voiceStorageKey());
+            String encrypted = Base64.encodeToString(cipher.doFinal(code.getBytes(java.nio.charset.StandardCharsets.UTF_8)), Base64.NO_WRAP);
+            if (!prefs.edit().putString("data", encrypted).putString("iv", Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP)).commit()) throw new Exception();
+            call.resolve();
+        } catch (Exception e) { call.reject("Could not securely save voice settings on this phone."); }
+    }
+    @PluginMethod
+    public void loadVoiceCode(PluginCall call) {
+        try {
+            android.content.SharedPreferences prefs = getContext().getSharedPreferences("ps_voice_secure", 0);
+            String encrypted = prefs.getString("data", ""); String code = "";
+            if (!encrypted.isEmpty()) {
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.DECRYPT_MODE, voiceStorageKey(), new GCMParameterSpec(128, Base64.decode(prefs.getString("iv", ""), Base64.NO_WRAP)));
+                code = new String(cipher.doFinal(Base64.decode(encrypted, Base64.NO_WRAP)), java.nio.charset.StandardCharsets.UTF_8);
+            }
+            JSObject out = new JSObject(); out.put("code", code); call.resolve(out);
+        } catch (Exception e) { call.reject("Saved voice settings could not be read. Enter and save your access code again."); }
+    }
     private SpeechRecognizer recognizer;
     private PluginCall speechCall;
     private MediaPlayer player;

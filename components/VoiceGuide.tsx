@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CapacitorHttp } from "@capacitor/core";
-import { isNativeAndroid, playNativeAudio, stopNativeAudio, speakNative } from "@/lib/native";
+import { isNativeAndroid, playNativeAudio, stopNativeAudio, speakNative, saveVoiceCode, loadVoiceCode } from "@/lib/native";
 import { buildNarration } from '@/lib/narration';
 import type { NarrationRequest } from "@/lib/narration";
 
@@ -36,12 +36,18 @@ export default function VoiceGuide(props: Props) {
   const autoKey = useRef("");
 
   useEffect(() => {
+    let active = true;
     try {
       setUrl(localStorage.getItem("ps-voice-url") || (isNativeAndroid() ? DEPLOYED_BACKEND : ""));
       setCode(sessionStorage.getItem("ps-voice-code") || "");
       setEnabled(localStorage.getItem("ps-voice-enabled") === "true");
     } catch { /* Storage may be unavailable; session input still works. */ }
-    setLoaded(true);
+    if (isNativeAndroid()) {
+      loadVoiceCode().then(value=>{if(active && value.code){setCode(value.code);sessionStorage.setItem('ps-voice-code',value.code);}})
+        .catch(()=>{if(active)setStatus('Saved voice code could not be read. Save it again in Voice settings.');})
+        .finally(()=>{if(active)setLoaded(true);});
+    } else setLoaded(true);
+    return ()=>{active=false;};
   }, []);
 
   const stop = useCallback(() => {
@@ -212,7 +218,8 @@ export default function VoiceGuide(props: Props) {
         clearAudio(); setCode(e.target.value);
         try { sessionStorage.setItem("ps-voice-code", e.target.value); } catch {}
       }}/>
-      <p className="ps-muted">On the web, leave the URL empty. For Android USB testing use http://localhost:3010 with port forwarding; otherwise use HTTPS. The access code is kept for this session.</p>
+      {isNativeAndroid() && <button className="ps-secondary" onClick={async()=>{try{await saveVoiceCode(code.trim());setStatus(code.trim()?'Voice access code saved securely on this phone.':'Saved voice access code removed.');}catch(e){setStatus(e instanceof Error?e.message:'Could not save voice settings.');}}}>Save voice code on this phone</button>}
+      <p className="ps-muted">On Android, save once to remember the voice access code securely across app restarts. Clear the field and save to remove it. The ElevenLabs API key stays on the backend. Browser codes remain session-only.</p>
       <button className="ps-secondary" disabled={busy} onClick={() => void play({ event: "preview" })}>Test voice</button>
     </details>}
     {!settingsVisible && <div className="ps-voice-controls">

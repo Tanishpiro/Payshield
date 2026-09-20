@@ -28,6 +28,12 @@ Hardware microphone, fingerprint and face checks require testing on an Android d
 
 ## Maintenance
 
+### Android v2.7 additions
+
+Home now includes a collapsible Track case card. The public POST `action=progress` endpoint accepts a full random case number and returns only fixed status labels, dates, generic activity and a fixed closure outcome. It never returns investigator text, actor identity, receiver ID, transaction amount or the private dossier. Anyone holding the case reference can read this limited synthetic status; keep case numbers private. This is not authenticated sender access for a production service.
+
+Voice settings include Save voice code on this phone. Android encrypts the backend access token using an Android Keystore AES-GCM key and stores only ciphertext/IV in app-private preferences. It loads on app restart; clearing and saving removes it. Provider API keys remain server-side. Reinstalling or clearing app data may require setup again. Browser storage remains session-only. Device testing is still required to validate persistence on a physical phone.
+
 ## Investigator workflow (v2.5)
 
 The website supports timestamped notes, full case timeline, JSON history export, closure with rationale, and reopening without erasing past decisions. Outcomes: sender report substantiated / receiver fraud, receiver cleared in this case, or inconclusive. Login uses a shared demo account, not individually attributable investigator identities. All findings concern synthetic data only.

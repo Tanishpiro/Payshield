@@ -1,6 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import { makeCase, reportPdf, issueSession, validSession, safeEqual } from '../shared/cases.mjs';
 import { readCase, receiverPrefix, normalizeReceiver, reputation, transition } from '../shared/workflow.mjs';
+import { publicProgress } from '../shared/case-progress.mjs';
 const cookie = 'ps_investigator';
 let minute=0, writes=0;
 export default async (req) => {
@@ -41,6 +42,13 @@ export default async (req) => {
   if(action==='reputation'){
    let id;try{id=normalizeReceiver(body.receiverId);if(!id)throw Error();}catch{return reply({error:'Valid receiver identifier required.'},400);}
    return reply(await reputation(getStore({name:'payshield-demo-cases',consistency:'strong'}),id));
+  }
+  if(action==='progress'){
+   const id=typeof body.caseNumber==='string'?body.caseNumber.trim().toUpperCase():'';
+   if(!/^PS-[A-F0-9]{16}$/.test(id))return reply({error:'Enter the full case number from your PDF (PS- followed by 16 characters).'},400);
+   const found=await readCase(getStore({name:'payshield-demo-cases',consistency:'strong'}),id);
+   if(!found)return reply({error:'Case not found. Check the number printed on your PDF.'},404);
+   return reply(publicProgress(found.record));
   }
   if(['note','close','reopen'].includes(action)){
    if(!validSession(sessionToken))return reply({error:'Sign in to update cases.'},401);

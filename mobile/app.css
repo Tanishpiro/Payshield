@@ -2,6 +2,7 @@
 @import "../components/scam-report.css";
 @import "../components/payment-actions.css";
 @import "../components/qr-scanner.css";
+@import "../components/case-tracker.css";
 
 :root {
   color-scheme: dark;
