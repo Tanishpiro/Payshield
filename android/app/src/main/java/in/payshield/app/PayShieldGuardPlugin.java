@@ -25,7 +25,8 @@ import java.util.concurrent.Executor;
 
 @CapacitorPlugin(name = "PayShieldGuard")
 public class PayShieldGuardPlugin extends Plugin {
-    private long lastStrongAuthenticationAt = 0L;
+    private volatile long lastStrongAuthenticationAt = 0L;
+    private boolean authenticationPending = false;
     @PluginMethod
     public void listen(PluginCall call) {
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
@@ -58,19 +59,41 @@ public class PayShieldGuardPlugin extends Plugin {
 
     @PluginMethod
     public void authenticate(PluginCall call) {
+        getActivity().runOnUiThread(() -> authenticateOnMainThread(call));
+    }
+
+    private void authenticateOnMainThread(PluginCall call) {
+        if (authenticationPending) {
+            call.reject("An identity check is already open. Finish or cancel that check first.");
+            return;
+        }
+        lastStrongAuthenticationAt = 0L;
         FragmentActivity activity = (FragmentActivity) getActivity();
         Executor executor = ContextCompat.getMainExecutor(activity);
         int authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG;
         int available = BiometricManager.from(activity).canAuthenticate(authenticators);
         if (available != BiometricManager.BIOMETRIC_SUCCESS) {
-            call.reject("Set up a strong fingerprint or face unlock before making payments.");
+            String message;
+            if (available == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED) {
+                message = "No payment-grade biometric is enrolled. Open Android Settings > Security and add a fingerprint or supported face unlock, then try again.";
+            } else if (available == BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE) {
+                message = "The biometric sensor is temporarily unavailable. Unlock your phone and try again.";
+            } else if (available == BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED) {
+                message = "Android requires a security update before this biometric sensor can authorize payments.";
+            } else {
+                message = "This phone does not currently support strong biometric payment verification. Basic camera face unlock may unlock your screen but cannot authorize this payment. Use an enrolled fingerprint or supported strong face unlock.";
+            }
+            call.reject(message, "BIOMETRIC_UNAVAILABLE_" + available);
             return;
         }
 
+        authenticationPending = true;
+        try {
         BiometricPrompt prompt = new BiometricPrompt(activity, executor,
                 new BiometricPrompt.AuthenticationCallback() {
                     @Override
                     public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                        authenticationPending = false;
                         lastStrongAuthenticationAt = System.currentTimeMillis();
                         JSObject response = new JSObject();
                         response.put("verified", true);
@@ -79,6 +102,8 @@ public class PayShieldGuardPlugin extends Plugin {
 
                     @Override
                     public void onAuthenticationError(int code, CharSequence message) {
+                        authenticationPending = false;
+                        lastStrongAuthenticationAt = 0L;
                         call.reject(message == null ? "Owner verification failed." : message.toString());
                     }
                 });
@@ -92,6 +117,11 @@ public class PayShieldGuardPlugin extends Plugin {
                 .setConfirmationRequired(true)
                 .build();
         prompt.authenticate(info);
+        } catch (RuntimeException error) {
+            authenticationPending = false;
+            lastStrongAuthenticationAt = 0L;
+            call.reject("Unable to open the Android identity check. Please try again.", error);
+        }
     }
 
     @PluginMethod

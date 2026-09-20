@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* ============================================================
+   PayShield styles
+   - Dark base is kept for the mobile pay flow (/pay, Android bundle)
+   - The PC dashboard opts into the light "Console Paper" theme by
+     rendering inside .ps-light
+   ============================================================ */
+
 :root {
   color-scheme: dark;
   --ps-bg: #070b14;
@@ -25,7 +32,7 @@ body {
   border-radius: 16px;
 }
 
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", monospace; font-feature-settings: "tnum" 1; }
 
 @keyframes ps-scan { 0% { transform: translateY(-100%) } 100% { transform: translateY(400%) } }
 .scanline { animation: ps-scan 1.4s ease-in-out infinite; }
@@ -36,3 +43,155 @@ body {
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #243149; border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   LIGHT THEME — PC dashboard
+   ============================================================ */
+
+html:has(.ps-light) { background: #f2f2ef; color-scheme: light; }
+body:has(.ps-light) {
+  background: #f2f2ef;
+  background-image: none;
+  color: #15171c;
+}
+body:has(.ps-light) ::-webkit-scrollbar-thumb { background: #d6d6cf; }
+
+.ps-light {
+  /* surfaces */
+  --bg: #f2f2ef;
+  --sunk: #eaeae5;
+  --surface: #ffffff;
+  --surface-2: #fafaf8;
+  --line: #e2e2db;
+  --line-soft: #ededea;
+
+  /* ink */
+  --ink: #15171c;
+  --ink-2: #4d535c;
+  --ink-3: #868c95;
+
+  /* brand */
+  --accent: #5b3df5;
+  --accent-ink: #4a2ee0;
+  --accent-soft: #f1edff;
+  --accent-line: #d8cdfe;
+
+  /* risk scale — mark colour + accessible text colour */
+  --low: #10a171;        --low-ink: #07784f;    --low-soft: #e8f8f0;
+  --med: #d69e00;        --med-ink: #8a6200;    --med-soft: #fdf5e0;
+  --high: #ef7215;       --high-ink: #a94a04;   --high-soft: #fdefe3;
+  --crit: #e5345a;       --crit-ink: #b30f35;   --crit-soft: #fdecf0;
+
+  --shadow-sm: 0 1px 2px rgba(20,22,28,.05), 0 1px 1px rgba(20,22,28,.04);
+  --shadow-md: 0 4px 14px -6px rgba(20,22,28,.12), 0 1px 2px rgba(20,22,28,.05);
+  --shadow-lg: 0 24px 60px -24px rgba(20,22,28,.28), 0 2px 8px rgba(20,22,28,.06);
+
+  color: var(--ink);
+  background: var(--bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: -0.006em;
+}
+
+/* --- surfaces --- */
+.ps-light .card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.ps-light .card-flat {
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.ps-light .hair { border-color: var(--line); }
+
+/* --- type --- */
+.ps-light .h1 { font-size: 1.0625rem; font-weight: 650; letter-spacing: -.02em; color: var(--ink); }
+.ps-light .h2 { font-size: .9375rem; font-weight: 640; letter-spacing: -.015em; color: var(--ink); }
+.ps-light .lbl {
+  font-size: .6875rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--ink-3);
+}
+.ps-light .muted { color: var(--ink-2); }
+.ps-light .faint { color: var(--ink-3); }
+
+/* --- controls --- */
+.ps-light .btn {
+  display: inline-flex; align-items: center; gap: .45rem;
+  border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink);
+  padding: .5rem .75rem; font-size: .8125rem; font-weight: 550;
+  box-shadow: var(--shadow-sm);
+  transition: background .15s, border-color .15s, transform .12s, box-shadow .15s;
+}
+.ps-light .btn:hover { background: var(--surface-2); border-color: #d4d4cc; }
+.ps-light .btn:active { transform: translateY(1px); }
+.ps-light .btn-primary {
+  background: linear-gradient(180deg, #6b4dff, #5030ef);
+  border-color: #4a2ee0; color: #fff;
+  box-shadow: 0 1px 2px rgba(80,48,239,.35), inset 0 1px 0 rgba(255,255,255,.18);
+}
+.ps-light .btn-primary:hover { background: linear-gradient(180deg, #7458ff, #5735f5); border-color: #4a2ee0; }
+.ps-light .btn-primary:disabled { opacity: .5; }
+.ps-light .btn-quiet {
+  background: transparent; border-color: transparent; box-shadow: none; color: var(--ink-2);
+}
+.ps-light .btn-quiet:hover { background: var(--sunk); border-color: transparent; color: var(--ink); }
+
+.ps-light .field {
+  width: 100%; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink);
+  padding: .625rem .75rem; font-size: .875rem; outline: none;
+  box-shadow: inset 0 1px 2px rgba(20,22,28,.04);
+  transition: border-color .15s, box-shadow .15s;
+}
+.ps-light .field::placeholder { color: var(--ink-3); }
+.ps-light .field:focus {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px rgba(91,61,245,.14);
+}
+
+.ps-light .tag {
+  display: inline-flex; align-items: center; gap: .35rem;
+  border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink-2);
+  padding: .1875rem .5rem; font-size: .6875rem; font-weight: 600;
+}
+
+.ps-light *:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* --- motion --- */
+@keyframes ps-rise { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+.ps-light .rise { animation: ps-rise .42s cubic-bezier(.22,1,.36,1) both; }
+@keyframes ps-fade { from { opacity: 0 } to { opacity: 1 } }
+.ps-light .fade { animation: ps-fade .25s ease both; }
+@keyframes ps-sweep { 0% { transform: translateX(-100%) } 100% { transform: translateX(300%) } }
+.ps-light .sweep { animation: ps-sweep 1.5s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes ps-breathe { 0%,100% { opacity: .35; transform: scale(1) } 50% { opacity: 1; transform: scale(1.35) } }
+.ps-light .breathe { animation: ps-breathe 2.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-light .rise, .ps-light .fade, .ps-light .sweep, .ps-light .breathe, .scanline, .pop {
+    animation: none !important;
+  }
+  .ps-light * { transition-duration: .01ms !important; }
+}
+
+/* --- table --- */
+.ps-light .grid-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .875rem; }
+.ps-light .grid-table th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--surface-2); color: var(--ink-3);
+  font-size: .6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
+  text-align: left; padding: .625rem .875rem; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.ps-light .grid-table td { padding: .6875rem .875rem; border-bottom: 1px solid var(--line-soft); }
+.ps-light .grid-table tbody tr { transition: background .12s; cursor: pointer; }
+.ps-light .grid-table tbody tr:hover { background: #fafaf7; }
+.ps-light .grid-table tbody tr:last-child td { border-bottom: 0; }

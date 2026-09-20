@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Logo, LevelPill, Gauge, TrustBar } from "./ui";
+import { Logo } from "./ui";
+import "./payment.css";
 import { LEVEL_META, type RiskLevel } from "@/lib/risk";
 import QrScanner from "./QrScanner";
 import { parsePaymentQr, parseVoicePayment, resolveReceiver, upiPaymentUri } from "@/lib/payment-intent";
@@ -128,182 +129,63 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   const a = res?.assessment;
   const meta = a ? LEVEL_META[a.level as RiskLevel] : null;
 
-  return (
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-5 pb-8 pt-[max(1.25rem,env(safe-area-inset-top))]">
-      {scanner && <QrScanner onScan={acceptQr} onClose={() => setScanner(false)} />}
-      <div className="flex items-center gap-2.5">
-        <Logo size={26} />
-        <div className="text-[15px] font-semibold">PayShield</div>
-        <span className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-500">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> AI police on
-        </span>
-      </div>
-
-      {step === "scan" && (
-        <div className="pop mt-6 flex-1">
-          <button onClick={() => setScanner(true)} className="relative mx-auto grid h-56 w-56 place-content-center overflow-hidden rounded-3xl border border-sky-500/25 bg-sky-500/5 transition hover:border-cyan-300/60" aria-label="Open camera to scan QR code">
-            <div className="scanline absolute inset-x-6 top-0 h-10 bg-gradient-to-b from-sky-400/35 to-transparent" />
-            <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="1.4" aria-hidden>
-              <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z" />
-              <path d="M15 15h2v2h-2zM19 15h2v2h-2zM15 19h2v2h-2zM19 19h2v2h-2z" />
-            </svg>
-            <span className="absolute bottom-4 inset-x-0 text-[11px] font-medium text-cyan-300">TAP TO OPEN CAMERA</span>
-          </button>
-          <p className="mt-4 text-center text-sm text-slate-400">Scan a QR code, or enter the receiver&apos;s UPI ID</p>
-
-          <input value={handle} onChange={(e) => { setHandle(e.target.value); setInputMode("manual"); setVoicePayment(false); }} placeholder="UPI ID or payment number"
-            className="mono mt-5 w-full rounded-2xl border border-[#1c2740] bg-[#0b1220] px-4 py-3.5 text-sm outline-none focus:border-sky-500/50" />
-
-          <div className="mt-3">
-            <div className="text-[11px] uppercase tracking-wider text-slate-500">Demo QR codes</div>
-            <div className="mt-2 grid gap-1.5">
-              {handles.map((h) => (
-                <button key={h.handle} onClick={() => setHandle(h.handle)}
-                  className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left ${handle === h.handle ? "border-sky-500/50 bg-sky-500/10" : "border-[#1c2740]"}`}>
-                  <span className="grid h-8 w-8 shrink-0 place-content-center rounded-lg bg-slate-800 text-[10px] text-slate-400">QR</span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm text-slate-200">{h.name}</span>
-                    <span className="mono block truncate text-[11px] text-slate-500">{h.handle}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {[{ name: "Suresh", number: "9876543210" }, { name: "Anita", number: "9812345678" }].map((contact) => (
-              <button key={contact.number} onClick={() => { setHandle(contact.number); setInputMode("manual"); setVoicePayment(false); }} className="rounded-xl border border-emerald-500/20 bg-emerald-500/[.04] px-3 py-2 text-left">
-                <span className="block text-xs text-slate-200">{contact.name}</span><span className="mono text-[10px] text-emerald-400">10/100 demo number</span>
-              </button>
-            ))}
-          </div>
-
-          <button onClick={captureVoice} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-400/[.06] py-3 text-sm font-medium text-cyan-200">
-            <span className="text-lg">◉</span> Speak a payment
-          </button>
-          <p className="mt-2 text-center text-[10px] leading-relaxed text-slate-600">Voice captures your instruction. Android biometrics verify it is really you before payment.</p>
-          {error && <p className="mt-3 rounded-xl border border-rose-500/25 bg-rose-500/[.06] p-3 text-xs text-rose-300">{error}</p>}
-
-          <button disabled={!handle.trim()} onClick={() => setStep("amount")}
-            className="mt-5 w-full rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-500 py-3.5 text-sm font-semibold text-white disabled:opacity-40">
-            Continue
-          </button>
+  const pick = (value: string) => { setHandle(value); setInputMode("manual"); setVoicePayment(false); setBank(""); setVoiceText(""); setError(""); setStep("amount"); };
+  const name = handles.find(h => h.handle === handle)?.name ?? (handle === "9876543210" ? "Suresh" : handle === "9812345678" ? "Anita" : handle);
+  return <div className="ps-pay">
+    {scanner && <QrScanner onScan={acceptQr} onClose={() => setScanner(false)} />}
+    <header className="ps-header"><div className="ps-brand"><Logo size={32}/><div><strong>PayShield</strong><small>Every payment. Protected.</small></div></div><span className="ps-tag">PROTOTYPE</span></header>
+    <main className="ps-content">
+    {step === "scan" && <>
+      <section className="ps-hero"><span className="ps-eyebrow">PAY WITH PEACE OF MIND</span><h1>Your money.<br/>An extra layer of care.</h1><p>AI Police checks the receiver before you pay.</p><span className="ps-protection">● Protection is on</span><div className="ps-hero-symbol"><Icon kind="shield"/></div></section>
+      <section className="ps-card"><div className="ps-title"><h2>Transfer money</h2><span>Simple & secure</span></div>
+        <div className="ps-actions">
+          {[["qr","Scan & pay"],["phone","To a number"],["bank","To a UPI ID"],["mic","Voice pay"]].map(([kind,label]) => <button key={kind} onClick={() => kind === "qr" ? setScanner(true) : kind === "mic" ? captureVoice() : document.getElementById("ps-receiver")?.focus()}><span><Icon kind={kind}/></span><strong>{label}</strong></button>)}
         </div>
-      )}
+        <label className="ps-label" htmlFor="ps-receiver">Mobile number or UPI ID</label>
+        <div className="ps-search"><Icon kind="search"/><input id="ps-receiver" value={handle} onChange={e => {setHandle(e.target.value);setInputMode("manual");setVoicePayment(false);}} placeholder="Enter number or name@bank"/><button aria-label="Continue" disabled={!handle.trim()} onClick={() => setStep("amount")}><Icon kind="arrow"/></button></div>
+      </section>
+      <section className="ps-card"><div className="ps-title"><h2>Pay people</h2><span>Demo contacts</span></div><div className="ps-contacts">
+        {[["Suresh","9876543210"],["Anita","9812345678"]].map(([n,num],i) => <button key={num} onClick={() => pick(num)}><span className={"ps-avatar tone-"+i}>{n[0]}</span><strong>{n}</strong><small>10/100 risk</small></button>)}
+        <button onClick={() => document.getElementById("ps-receiver")?.focus()}><span className="ps-avatar tone-2"><Icon kind="plus"/></span><strong>New payment</strong><small>Number / UPI</small></button>
+      </div></section>
+      <button className="ps-voice" onClick={captureVoice}><span className="ps-voice-icon"><Icon kind="mic"/></span><span><strong>Just say it. We’ll check it.</strong><small>Voice + face or fingerprint</small></span><Icon kind="arrow"/></button>
+      <section className="ps-card"><div className="ps-title"><h2>Try a receiver</h2><span>AI Police demo</span></div><div className="ps-receivers">{handles.map((h,i) => <button key={h.handle} onClick={() => pick(h.handle)}><span className={"ps-avatar tone-"+i%3}>{h.name[0]}</span><span><strong>{h.name}</strong><small>{h.handle}</small></span><Icon kind="arrow"/></button>)}</div>{!handles.length && <p className="ps-muted">Enter a number above to try a payment.</p>}</section>
+      <p className="ps-note">Number demos: 10/100 · QR demos: 80/100<br/>Synthetic payments don’t move real money.</p>
+    </>}
+    {step === "amount" && <>
+      <button className="ps-back" onClick={() => setStep("scan")}>← Back to payments</button>
+      <section className="ps-card ps-amount"><span className="ps-avatar tone-0">{name?.[0]?.toUpperCase() || "P"}</span><h1>Paying {name}</h1><p className="ps-handle">{handle}</p>{bank && <span className="ps-tag">Requested bank: {bank}</span>}
+      <label htmlFor="ps-amount" className="ps-label">Enter amount</label><div className="ps-amount-input"><span>₹</span><input id="ps-amount" autoFocus inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value.replace(/\D/g,""))} placeholder="0"/></div>
+      <div className="ps-chips">{[500,2000,5000,10000].map(v => <button key={v} onClick={() => setAmount(String(v))}>{inr(v)}</button>)}</div>{voiceText && <p className="ps-note">“{voiceText}”</p>}</section>
+      <div className="ps-assurance"><Icon kind="shield"/><span><strong>Checked before you pay</strong><small>Receiver risk, identity and fraud signals</small></span></div>
+      <button className="ps-primary" disabled={!Number(amount)} onClick={analyse}>Check payment <Icon kind="arrow"/></button>
+    </>}
+    {step === "analysing" && <section className="ps-card ps-status" aria-live="polite"><div className="ps-checking"><Icon kind="shield"/></div><span className="ps-eyebrow">AI POLICE</span><h1>Checking your payment</h1><p>Taking a closer look at the receiver.</p><ul className="ps-check-list">{STEPS.map(s => <li key={s}><span/>{s}</li>)}</ul></section>}
+    {step === "authenticating" && <section className="ps-card ps-status"><div className="ps-checking"><Icon kind="shield"/></div><h1>One last check.<br/>Is it you?</h1><p>Confirm with your strong face or fingerprint authentication to continue.</p><span className="ps-tag">Biometrics stay on your device</span></section>}
+    {step === "result" && a && <>
+      <button className="ps-back" onClick={() => setStep("amount")}>← Payment details</button>
+      <section className={"ps-card ps-result risk-"+a.level}><span className="ps-eyebrow">YOUR PAYMENT CHECK</span><div className="ps-score" style={{"--score":a.score+"%"} as React.CSSProperties}><div><strong>{a.score}<small>/100</small></strong><span>Risk score</span></div></div><span className="ps-risk-label">{meta!.label}</span><h1>{res.receiver.display_name}</h1><p className="ps-handle">{res.receiver.handle}</p><p>{a.headline}</p>{a.synthetic && <span className="ps-tag">Demo score · No real funds</span>}</section>
+      <section className="ps-card"><div className="ps-title"><h2>Payment summary</h2><strong>{inr(a.amount)}</strong></div><div className="ps-assurance"><Icon kind="shield"/><strong>{meta!.action}</strong></div>{voicePayment && <p className="ps-muted">Voice request · face or fingerprint required</p>}</section>
+      <section className="ps-card"><div className="ps-title"><h2>Behind the score</h2><span>AI Police</span></div>{[...a.reasons.slice(0,5),...a.positives.slice(0,3)].map((r:any) => <div className="ps-reason" key={r.code}><Icon kind="shield"/><div><strong>{r.label}</strong><p>{r.detail}</p></div></div>)}</section>
+      <button className="ps-primary" disabled={a.action === "block"} onClick={authorizePayment}>{a.action === "block" ? "Payment blocked" : "Verify face / fingerprint"}<Icon kind="shield"/></button><button className="ps-secondary" onClick={reset}>Cancel payment</button>
+    </>}
+    {step === "paid" && <section className="ps-card ps-status"><div className="ps-success">✓</div><h1>{a?.synthetic ? "Demo complete" : "Ready in your UPI app"}</h1><strong className="ps-paid-amount">{inr(Number(amount))}</strong><p className="ps-handle">{handle}</p><p>{a?.synthetic ? "Your prototype payment is complete. No real money was transferred." : "Finish authorizing the payment in your UPI app. Your bank will confirm its status."}</p><button className="ps-primary" onClick={reset}>Back to payments</button></section>}
+    {error && <p className="ps-error" role="alert">{error}</p>}
+    <footer className="ps-footer"><Logo size={18}/> Protected by PayShield</footer>
+    </main>
+    {step === "scan" && <div className="ps-dock"><button onClick={() => setScanner(true)}><Icon kind="qr"/> Scan any UPI QR</button></div>}
+  </div>;
+}
 
-      {step === "amount" && (
-        <div className="pop mt-6 flex-1">
-          <button onClick={() => setStep("scan")} className="text-xs text-slate-500">← Change receiver</button>
-          <div className="mt-4 rounded-2xl border border-[#1c2740] bg-[#0b1220]/60 p-4">
-            <div className="text-[11px] uppercase tracking-wider text-slate-500">Paying</div>
-            <div className="mono mt-1 text-sm text-slate-200">{handle}</div>
-            {bank && <div className="mt-2 text-xs text-cyan-300">Funding account requested: {bank}</div>}
-          </div>
-          {voiceText && <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/[.04] p-3 text-xs text-slate-400">“{voiceText}”</div>}
-          <label className="mt-6 block text-[11px] uppercase tracking-wider text-slate-500">Amount</label>
-          <div className="mt-2 flex items-baseline gap-2 border-b border-[#1c2740] pb-3">
-            <span className="text-3xl text-slate-500">₹</span>
-            <input autoFocus inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} placeholder="0"
-              className="mono w-full bg-transparent text-4xl font-semibold outline-none placeholder:text-slate-700" />
-          </div>
-          <div className="mt-3 flex gap-2">
-            {[500, 2500, 10000, 45000].map((v) => (
-              <button key={v} onClick={() => setAmount(String(v))} className="mono flex-1 rounded-lg border border-[#1c2740] py-1.5 text-[11px] text-slate-400">{inr(v)}</button>
-            ))}
-          </div>
-          <button disabled={!Number(amount)} onClick={analyse}
-            className="mt-8 w-full rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-500 py-3.5 text-sm font-semibold text-white disabled:opacity-40">
-            Check with PayShield
-          </button>
-          <p className="mt-3 text-center text-[11px] text-slate-600">PayShield checks the receiver before the money moves.</p>
-          {error && <p className="mt-3 rounded-xl border border-rose-500/25 bg-rose-500/[.06] p-3 text-xs text-rose-300">{error}</p>}
-        </div>
-      )}
-
-      {step === "analysing" && (
-        <div className="mt-6 flex flex-1 flex-col items-center justify-center">
-          <div className="relative h-28 w-28 overflow-hidden rounded-3xl border border-sky-500/30 bg-sky-500/5">
-            <div className="scanline absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-sky-400/40 to-transparent" />
-          </div>
-          <p className="mono mt-5 text-sm text-sky-300">AI police analysing…</p>
-          <ul className="mt-4 space-y-1.5">
-            {STEPS.map((s, i) => (
-              <li key={s} className="pop text-xs text-slate-400" style={{ animationDelay: `${i * 200}ms` }}>✓ {s}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {step === "authenticating" && (
-        <div className="mt-6 flex flex-1 flex-col items-center justify-center text-center">
-          <div className="grid h-24 w-24 place-content-center rounded-[2rem] border border-cyan-400/40 bg-cyan-400/[.08] text-4xl">◎</div>
-          <h2 className="mt-5 text-lg font-semibold">Verify it’s you</h2>
-          <p className="mt-2 max-w-xs text-sm text-slate-400">Use a strong fingerprint or face check. Your biometric data never leaves Android.</p>
-        </div>
-      )}
-
-      {step === "result" && a && (
-        <div className="pop mt-5 flex-1">
-          <div className="flex flex-col items-center">
-            <Gauge score={a.score} level={a.level} size={188} />
-            <div className="mt-3"><LevelPill level={a.level} /></div>
-            <h2 className="mt-3 text-center text-lg font-semibold">{res.receiver.display_name}</h2>
-            <div className="mono text-xs text-slate-500">{res.receiver.handle}</div>
-            <p className="mt-3 text-center text-sm text-slate-300">{a.headline}</p>
-            {a.synthetic && <div className="mt-3 rounded-full border border-cyan-400/25 bg-cyan-400/[.06] px-3 py-1 text-[10px] uppercase tracking-wider text-cyan-300">Synthetic prototype score · no real funds</div>}
-          </div>
-
-          <div className="mt-4"><TrustBar value={a.trustScore} /></div>
-
-          <div className="mt-4 space-y-2">
-            {a.reasons.slice(0, 5).map((r: any) => (
-              <div key={r.code} className="rounded-xl border border-rose-500/20 bg-rose-500/[.05] p-3">
-                <div className="text-sm text-slate-100">{r.label}</div>
-                <div className="mt-0.5 text-xs text-slate-400">{r.detail}</div>
-              </div>
-            ))}
-            {a.positives.slice(0, 3).map((r: any) => (
-              <div key={r.code} className="rounded-xl border border-emerald-500/20 bg-emerald-500/[.05] p-3">
-                <div className="text-sm text-slate-100">{r.label}</div>
-                <div className="mt-0.5 text-xs text-slate-400">{r.detail}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className={`mt-5 rounded-2xl border p-4 ${meta!.border} ${meta!.bg}`}>
-            <div className="text-[11px] uppercase tracking-wider text-slate-400">PayShield decision</div>
-            <div className={`mt-0.5 text-base font-semibold ${meta!.text}`}>{meta!.action}</div>
-            <div className="mono mt-1 text-sm text-slate-300">{inr(a.amount)} → {res.receiver.handle}</div>
-            {voicePayment && <div className="mt-2 text-[11px] text-cyan-300">Voice request · owner verification required</div>}
-          </div>
-          {error && <p className="mt-3 rounded-xl border border-rose-500/25 bg-rose-500/[.06] p-3 text-xs text-rose-300">{error}</p>}
-
-          {a.action === "block" ? (
-            <>
-              <button disabled className="mt-4 w-full rounded-2xl bg-slate-800 py-3.5 text-sm font-semibold text-slate-500">Payment blocked</button>
-              <button onClick={reset} className="mt-2 w-full rounded-2xl border border-[#1c2740] py-3 text-sm text-slate-300">Cancel payment</button>
-            </>
-          ) : (
-            <>
-              <button onClick={authorizePayment}
-                className={`mt-4 w-full rounded-2xl py-3.5 text-sm font-semibold text-white ${a.action === "allow" ? "bg-gradient-to-r from-emerald-500 to-teal-500" : "bg-gradient-to-r from-amber-500 to-orange-500"}`}>
-                {voicePayment ? "Voice accepted · verify face/fingerprint" : "Verify face/fingerprint and continue"}
-              </button>
-              <button onClick={reset} className="mt-2 w-full rounded-2xl border border-[#1c2740] py-3 text-sm text-slate-300">Cancel</button>
-            </>
-          )}
-        </div>
-      )}
-
-      {step === "paid" && (
-        <div className="pop mt-6 flex flex-1 flex-col items-center justify-center text-center">
-          <div className="grid h-20 w-20 place-content-center rounded-full border border-emerald-500/40 bg-emerald-500/10 text-3xl text-emerald-300">✓</div>
-          <h2 className="mt-4 text-lg font-semibold">Payment securely handed off</h2>
-          <div className="mono mt-1 text-sm text-slate-400">{inr(Number(amount))} → {handle}</div>
-          <p className="mt-2 text-xs text-slate-500">{a?.synthetic ? "Prototype completed. No UPI app was opened and no real funds moved." : "Complete the payment in your UPI app. Your UPI provider—not PayShield—selects and authorizes the linked bank account. The PayShield risk assessment is on record."}</p>
-          <button onClick={reset} className="mt-6 w-full rounded-2xl border border-[#1c2740] py-3 text-sm text-slate-300">New payment</button>
-        </div>
-      )}
-    </div>
-  );
+function Icon({kind}:{kind:string}) {
+  const paths:Record<string,React.ReactNode> = {
+    shield:<><path d="m12 3 8 3v6c0 5-5 8-8 9-3-1-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/></>,
+    qr:<><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h-2zM20 15v6h-5v-2"/></>,
+    phone:<><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 5h4M11 19h2"/></>,
+    bank:<><path d="m3 8 9-5 9 5M3 9h18M5 10v8M10 10v8M14 10v8M19 10v8M3 21h18"/></>,
+    mic:<><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></>,
+    search:<><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></>,
+    arrow:<path d="M5 12h14m-5-5 5 5-5 5"/>,plus:<path d="M12 5v14M5 12h14"/>
+  };
+  return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[kind]}</svg>;
 }
