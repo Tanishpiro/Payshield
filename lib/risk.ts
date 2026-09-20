@@ -40,6 +40,8 @@ export type Assessment = {
   positives: Reason[];
   trustScore: number;
   amount: number;
+  confidence: number;
+  policyVersion: string;
 };
 
 const DAY = 86400000;
@@ -102,6 +104,8 @@ export function assess(f: ReceiverFacts, amount: number): Assessment {
   // 3. Velocity
   if (f.tx24h >= 150) add({ code: "VEL_EXTREME", label: "Unusual number of transactions detected", detail: `${f.tx24h} incoming payments in the last 24 hours`, weight: 17, category: "velocity", direction: "risk" });
   else if (f.tx24h >= 60) add({ code: "VEL_HIGH", label: "High incoming transaction velocity", detail: `${f.tx24h} incoming payments in the last 24 hours`, weight: 12, category: "velocity", direction: "risk" });
+  const priorDailyRate = Math.max(1, (f.tx7d - f.tx24h) / 6);
+  if (f.tx24h >= 20 && f.tx24h > priorDailyRate * 4) add({ code: "VEL_SPIKE", label: "Sudden transaction activity spike", detail: `Today's activity is ${Math.round(f.tx24h / priorDailyRate)}× the recent daily baseline`, weight: 10, category: "velocity", direction: "risk" });
   if (f.uniqueSenders24h >= 50 && age < 60) add({ code: "VEL_SENDERS", label: "Money collected from many unrelated senders", detail: `${f.uniqueSenders24h} distinct senders in 24h on a ${age}-day-old account`, weight: 12, category: "velocity", direction: "risk" });
   if (f.totalTx > 300 && f.distinctDays > 120 && f.tx24h < 60) add({ code: "VEL_STEADY", label: "Consistent, organic transaction pattern", detail: `${f.totalTx} payments spread across ${f.distinctDays} days`, weight: 10, category: "velocity", direction: "trust" });
 
@@ -135,13 +139,16 @@ export function assess(f: ReceiverFacts, amount: number): Assessment {
 
   // 7. Fraud-network analysis
   const flagged = f.links.filter((l) => l.flagged);
-  if (flagged.length >= 2) add({ code: "NET_CLUSTER", label: "Connected to a suspected fraud network", detail: `Linked to ${flagged.length} flagged accounts (${flagged.slice(0, 3).map((l) => l.handle).join(", ")})`, weight: 17, category: "network", direction: "risk" });
-  else if (flagged.length === 1) add({ code: "NET_LINK", label: "Connection with a previously flagged entity", detail: `${flagged[0].link_type.replace(/_/g, " ")} link to ${flagged[0].handle}`, weight: 12, category: "network", direction: "risk" });
+  const strongestLink = flagged.reduce((max, link) => Math.max(max, link.strength || 0), 0);
+  if (flagged.length >= 2) add({ code: "NET_CLUSTER", label: "Connected to a suspected fraud network", detail: `Linked to ${flagged.length} flagged accounts (${flagged.slice(0, 3).map((l) => l.handle).join(", ")})`, weight: 17 + Math.round(strongestLink * 3), category: "network", direction: "risk" });
+  else if (flagged.length === 1) add({ code: "NET_LINK", label: "Connection with a previously flagged entity", detail: `${flagged[0].link_type.replace(/_/g, " ")} link to ${flagged[0].handle}`, weight: 10 + Math.round(strongestLink * 4), category: "network", direction: "risk" });
 
   const riskRaw = reasons.reduce((a, r) => a + r.weight, 0);
   const trustRaw = positives.reduce((a, r) => a + r.weight, 0);
   // Trust offsets risk but can never fully erase a confirmed fraud signal.
-  const floor = confirmed.length ? 72 : 0;
+  const amountAnomaly = reasons.some((r) => r.code === "BEH_AMOUNT");
+  const coordinatedConfirmedFraud = confirmed.length > 0 && flagged.length >= 2 && bad.length > 0;
+  const floor = coordinatedConfirmedFraud ? 91 : confirmed.length ? 72 : amountAnomaly ? 31 : 0;
   const net = riskRaw - trustRaw * 0.45 + (riskRaw > 0 ? 6 : 0);
   // Diminishing returns above 90 so stacked signals stay separable instead of all pinning at 100.
   const compressed = net <= 90 ? net : 90 + (net - 90) * (10 / 70);
@@ -168,5 +175,7 @@ export function assess(f: ReceiverFacts, amount: number): Assessment {
     positives: positives.sort((a, b) => b.weight - a.weight),
     trustScore: trustScore(f),
     amount,
+    confidence: Math.min(99, Math.round(58 + Math.log10(f.totalTx + 1) * 12 + Math.min(12, f.distinctDays / 30))),
+    policyVersion: "AI-POLICE-2.0",
   };
 }

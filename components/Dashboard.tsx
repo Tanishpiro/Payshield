@@ -145,17 +145,18 @@ function LiveCheck({ cards }: { cards: Card[] }) {
   const [, start] = useTransition();
   const router = useRouter();
 
-  async function run() {
+  async function run(simulateKyc?: string) {
     setStage("scanning"); setRes(null);
     const t0 = Date.now();
-    const r = await fetch("/api/risk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handle, amount, sender: "demo@payshield" }) }).then((x) => x.json());
+    const r = await fetch("/api/risk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handle, amount, sender: "demo@payshield", simulateKyc }) })
+      .then(async (x) => ({ ok: x.ok, body: await x.json() }))
+      .catch(() => ({ ok: false, body: { error: "Risk service is unavailable" } }));
     const wait = Math.max(0, 1100 - (Date.now() - t0));
-    setTimeout(() => { setRes(r); setStage("done"); }, wait);
+    setTimeout(() => { setRes(r.ok ? r.body : { error: r.body.error }); setStage("done"); }, wait);
   }
 
   async function setKyc(kyc: string) {
-    await fetch("/api/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handle, kyc_status: kyc }) });
-    await run();
+    await run(kyc);
     start(() => router.refresh());
   }
 
@@ -189,7 +190,7 @@ function LiveCheck({ cards }: { cards: Card[] }) {
           ))}
         </div>
 
-        <button onClick={run} disabled={stage === "scanning"}
+        <button onClick={() => run()} disabled={stage === "scanning" || !handle || amount <= 0 || amount > 200000}
           className="mt-5 w-full rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 py-3 text-sm font-semibold text-white disabled:opacity-60">
           {stage === "scanning" ? "Analysing…" : "Analyse this payment"}
         </button>
@@ -251,6 +252,7 @@ function LiveCheck({ cards }: { cards: Card[] }) {
             </div>
           </div>
         )}
+        {stage === "done" && !a && <div className="grid min-h-[420px] place-content-center text-center"><div className="text-sm text-rose-300">{res?.error || "Unable to analyse this payment."}</div><button onClick={() => setStage("idle")} className="mt-4 text-xs text-sky-300">Try again</button></div>}
       </section>
     </div>
   );

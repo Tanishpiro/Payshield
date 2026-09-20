@@ -1,2 +1,5 @@
 /** @type {import('next').NextConfig} */
-export default { eslint: { ignoreDuringBuilds: true }, typescript: { ignoreBuildErrors: false } };
+export default {
+  typescript: { ignoreBuildErrors: false },
+  turbopack: { root: process.cwd() },
+};

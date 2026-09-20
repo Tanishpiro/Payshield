@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PayShield</string>
+    <string name="title_activity_main">PayShield</string>
+    <string name="package_name">in.payshield.app</string>
+    <string name="custom_url_scheme">in.payshield.app</string>
+    <string-array name="send_payment_queries">
+        <item>send $amount rupees from $bank to $receiver</item>
+        <item>pay $receiver $amount rupees from $bank</item>
+        <item>transfer $amount rupees from $bank to $receiver</item>
+    </string-array>
+</resources>

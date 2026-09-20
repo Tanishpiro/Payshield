@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <capability
+        android:name="custom.actions.intent.SEND_PROTECTED_PAYMENT"
+        app:queryPatterns="@array/send_payment_queries">
+        <intent android:action="android.intent.action.VIEW">
+            <url-template android:value="payshield://pay{?amount,bank,receiver}" />
+            <parameter android:name="amount" android:key="amount" android:mimeType="https://schema.org/Number" android:required="true" />
+            <parameter android:name="bank" android:key="bank" android:mimeType="https://schema.org/Text" android:required="true" />
+            <parameter android:name="receiver" android:key="receiver" android:mimeType="https://schema.org/Text" android:required="true" />
+        </intent>
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="in.payshield.app"
+            android:targetClass="in.payshield.app.MainActivity" />
+    </capability>
+</shortcuts>
