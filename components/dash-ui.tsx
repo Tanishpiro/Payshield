@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 /* ============================================================
    Light-theme primitives for the PC dashboard.
@@ -25,15 +25,16 @@ const zone = (v: number): Level => (v <= 30 ? "low" : v <= 60 ? "medium" : v <= 
 /* ---------------- brand ---------------- */
 
 export function Mark({ size = 26 }: { size?: number }) {
+  const gid = "psl" + useId().replace(/:/g, "");
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
       <defs>
-        <linearGradient id="psl" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#7c5cff" />
           <stop offset="1" stopColor="#4a2ee0" />
         </linearGradient>
       </defs>
-      <path d="M16 2.6 27 6.6v9.1c0 7-4.6 12.2-11 14.3-6.4-2.1-11-7.3-11-14.3V6.6L16 2.6Z" fill="url(#psl)" />
+      <path d="M16 2.6 27 6.6v9.1c0 7-4.6 12.2-11 14.3-6.4-2.1-11-7.3-11-14.3V6.6L16 2.6Z" fill={`url(#${gid})`} />
       <path d="M16 5.1 24.6 8.2v7.5c0 5.6-3.5 9.8-8.6 11.6-5.1-1.8-8.6-6-8.6-11.6V8.2L16 5.1Z" fill="#fff" fillOpacity=".16" />
       <path d="M11.2 16.3l3.5 3.4 6.4-7" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -61,7 +62,7 @@ export function Card({
   className?: string; pad?: boolean; id?: string;
 }) {
   return (
-    <section id={id} className={`card overflow-hidden ${className}`}>
+    <section id={id} className={`card min-w-0 overflow-hidden ${className}`}>
       {(title || actions) && (
         <div className="flex items-start gap-3 px-5 pt-4 pb-3">
           <div className="min-w-0">
@@ -112,7 +113,7 @@ export function ScoreDial({ score, level, size = 196 }: { score: number; level: 
   }, [score]);
 
   const cx = size / 2, cy = size / 2;
-  const R = size / 2 - 6;
+  const R = size / 2 - 13;
   const START = -128, SWEEP = 256;
   const N = 48;
   const m = LV[lv(level)];
@@ -127,7 +128,7 @@ export function ScoreDial({ score, level, size = 196 }: { score: number; level: 
     return { a, b, on, zc, long, key: i };
   });
 
-  const needle = polar(cx, cy, R - 20, START + (Math.min(100, Math.max(0, shown)) / 100) * SWEEP);
+  const mark = polar(cx, cy, R, START + (Math.min(100, Math.max(0, shown)) / 100) * SWEEP);
   const block = polar(cx, cy, R + 1, START + 0.9 * SWEEP);
   const blockIn = polar(cx, cy, R - 19, START + 0.9 * SWEEP);
 
@@ -142,10 +143,10 @@ export function ScoreDial({ score, level, size = 196 }: { score: number; level: 
         ))}
         {/* hard-block threshold at 90 */}
         <line x1={block.x} y1={block.y} x2={blockIn.x} y2={blockIn.y} stroke="var(--crit-ink)" strokeWidth="1.5" strokeDasharray="2 2" />
-        <line x1={cx} y1={cy} x2={needle.x} y2={needle.y} stroke={m.mark} strokeWidth="2.5" strokeLinecap="round" />
-        <circle cx={cx} cy={cy} r="5" fill="#fff" stroke={m.mark} strokeWidth="2.5" />
+        <circle cx={mark.x} cy={mark.y} r="6.5" fill="#fff" stroke={m.mark} strokeWidth="3"
+          style={{ transition: "cx .3s ease, cy .3s ease" }} />
       </svg>
-      <div className="pointer-events-none absolute inset-0 grid place-content-center pt-6 text-center">
+      <div className="pointer-events-none absolute inset-0 grid place-content-center pt-3 text-center">
         <div className="mono text-[42px] font-semibold leading-none" style={{ color: m.ink }}>{shown}</div>
         <div className="lbl mt-1.5">Risk / 100</div>
       </div>

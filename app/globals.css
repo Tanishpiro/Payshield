@@ -92,6 +92,7 @@ body:has(.ps-light) ::-webkit-scrollbar-thumb { background: #d6d6cf; }
   letter-spacing: -0.006em;
 }
 
+@layer components {
 /* --- surfaces --- */
 .ps-light .card {
   background: var(--surface);
@@ -122,7 +123,7 @@ body:has(.ps-light) ::-webkit-scrollbar-thumb { background: #d6d6cf; }
   border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--ink);
   padding: .5rem .75rem; font-size: .8125rem; font-weight: 550;
-  box-shadow: var(--shadow-sm);
+  white-space: nowrap; box-shadow: var(--shadow-sm);
   transition: background .15s, border-color .15s, transform .12s, box-shadow .15s;
 }
 .ps-light .btn:hover { background: var(--surface-2); border-color: #d4d4cc; }
@@ -165,6 +166,8 @@ body:has(.ps-light) ::-webkit-scrollbar-thumb { background: #d6d6cf; }
   border-radius: 8px;
 }
 
+}
+
 /* --- motion --- */
 @keyframes ps-rise { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
 .ps-light .rise { animation: ps-rise .42s cubic-bezier(.22,1,.36,1) both; }
@@ -182,6 +185,7 @@ body:has(.ps-light) ::-webkit-scrollbar-thumb { background: #d6d6cf; }
   .ps-light * { transition-duration: .01ms !important; }
 }
 
+@layer components {
 /* --- table --- */
 .ps-light .grid-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .875rem; }
 .ps-light .grid-table th {
@@ -195,3 +199,4 @@ body:has(.ps-light) ::-webkit-scrollbar-thumb { background: #d6d6cf; }
 .ps-light .grid-table tbody tr { transition: background .12s; cursor: pointer; }
 .ps-light .grid-table tbody tr:hover { background: #fafaf7; }
 .ps-light .grid-table tbody tr:last-child td { border-bottom: 0; }
+}

@@ -180,7 +180,7 @@ function Overview({ cards, stats, nodes, edges, recent, filter, setFilter, onChe
     <div className="space-y-5">
       {/* triage band */}
       <div className="card grid gap-6 p-5 lg:grid-cols-[1.35fr_1px_1fr]">
-        <div>
+        <div className="min-w-0">
           <div className="flex items-baseline justify-between gap-3">
             <div>
               <h2 className="h2">Risk triage · {cards.length} receivers</h2>
@@ -193,7 +193,7 @@ function Overview({ cards, stats, nodes, edges, recent, filter, setFilter, onChe
           <div className="mt-4"><Triage counts={counts} active={filter} onPick={setFilter} /></div>
         </div>
         <div className="hidden bg-[var(--line)] lg:block" />
-        <div className="flex flex-col justify-between gap-4">
+        <div className="flex min-w-0 flex-col justify-between gap-4">
           <div>
             <div className="lbl">Highest-risk account right now</div>
             {worst ? (
@@ -208,11 +208,11 @@ function Overview({ cards, stats, nodes, edges, recent, filter, setFilter, onChe
             ) : <p className="mt-2 text-[13px] text-[var(--ink-3)]">No receivers loaded.</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl p-3" style={{ background: "var(--crit-soft)" }}>
+            <div className="min-w-0 rounded-xl p-3" style={{ background: "var(--crit-soft)" }}>
               <div className="lbl" style={{ color: "var(--crit-ink)" }}>Would be held</div>
               <div className="mono mt-1 text-[22px] font-semibold leading-none" style={{ color: "var(--crit-ink)" }}>{stats.flagged}</div>
             </div>
-            <div className="rounded-xl p-3" style={{ background: "var(--low-soft)" }}>
+            <div className="min-w-0 rounded-xl p-3" style={{ background: "var(--low-soft)" }}>
               <div className="lbl" style={{ color: "var(--low-ink)" }}>Exposure stopped</div>
               <div className="mono mt-1 text-[22px] font-semibold leading-none" style={{ color: "var(--low-ink)" }}>{compactInr(stats.valueProtected)}</div>
             </div>
@@ -228,7 +228,7 @@ function Overview({ cards, stats, nodes, edges, recent, filter, setFilter, onChe
         <Stat label="Clean receivers" value={counts.low} tone="low" hint="Scored 30 or below — payment proceeds" />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.15fr_1fr]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[1.15fr_1fr]">
         <Card
           title={filter ? `${LV[filter as Level].label} accounts` : "Hold queue"}
           sub={filter ? undefined : "High and critical accounts, worst first. A score of 91+ is blocked outright."}
@@ -324,7 +324,7 @@ function LiveCheck({ cards, handle, setHandle }: { cards: RCard[]; handle: strin
   const blocked = a && a.score >= 91;
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[372px_1fr]">
+    <div className="grid min-w-0 gap-5 xl:grid-cols-[372px_1fr]">
       <div className="space-y-4 xl:sticky xl:top-[86px] xl:self-start">
         <Card title="Check a payment" sub="Enter the receiver and amount. PayShield decides before the money moves.">
           <label className="lbl mt-1 block" htmlFor="rcv">Receiver UPI handle</label>
@@ -680,7 +680,7 @@ function Feed({ recent }: { recent: Tx[] }) {
         <div className="flex items-center gap-2">
           {[0, 5000, 25000].map((v) => (
             <button key={v} onClick={() => setMinAmt(v)}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition ${
+              className={`whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold transition ${
                 minAmt === v ? "bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "text-[var(--ink-3)] hover:bg-[var(--sunk)]"
               }`}>{v === 0 ? "All" : `≥ ${compactInr(v)}`}</button>
           ))}
@@ -762,7 +762,7 @@ function Palette({ cards, onClose, onTab, onCheck }: {
           </svg>
           <input ref={input} value={q} onChange={(e) => setQ(e.target.value)}
             placeholder="Jump to a section or receiver…"
-            className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-[var(--ink-3)]"
+            className="flex-1 bg-transparent text-[14px] outline-none focus-visible:outline-none placeholder:text-[var(--ink-3)]"
             onKeyDown={(e) => {
               if (e.key === "Escape") onClose();
               if (e.key === "ArrowDown") { e.preventDefault(); setI((v) => Math.min(items.length - 1, v + 1)); }

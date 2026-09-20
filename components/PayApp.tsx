@@ -8,6 +8,7 @@ import QrScanner from "./QrScanner";
 import { parsePaymentQr, parseVoicePayment, resolveReceiver, upiPaymentUri } from "@/lib/payment-intent";
 import { listenForPayment, openUpi, verifyOwner } from "@/lib/native";
 import { App } from "@capacitor/app";
+import VoiceGuide from "./VoiceGuide";
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 const STEPS = ["Resolving receiver", "Account age & KYC", "Transaction velocity", "Fraud complaint history", "Device & network links", "Scoring"];
@@ -28,6 +29,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   const [voicePayment, setVoicePayment] = useState(false);
   const [voiceText, setVoiceText] = useState("");
   const [error, setError] = useState("");
+  const [listening, setListening] = useState(false);
   const [inputMode, setInputMode] = useState<"manual" | "qr" | "voice">("manual");
 
   const acceptVoiceIntent = useCallback((transcript: string) => {
@@ -84,11 +86,14 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   function reset() { setStep("scan"); setHandle(""); setAmount(""); setRes(null); setBank(""); setVoicePayment(false); setVoiceText(""); setError(""); setInputMode("manual"); }
 
   async function captureVoice() {
+    if (listening) return;
+    setListening(true);
     setError("");
     try {
       const transcript = await listenForPayment();
       acceptVoiceIntent(transcript);
     } catch (e) { setError(e instanceof Error ? e.message : "Voice recognition failed."); }
+    finally { setListening(false); }
   }
 
   const acceptQr = useCallback((raw: string) => {
@@ -103,7 +108,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   }, []);
 
   async function authorizePayment() {
-    if (!a || a.action === "block") return;
+    if (!a || a.action === "block" || a.score > 90) return;
     setError("");
     const needsOwnerCheck = true;
     if (needsOwnerCheck) {
@@ -171,6 +176,9 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     </>}
     {step === "paid" && <section className="ps-card ps-status"><div className="ps-success">✓</div><h1>{a?.synthetic ? "Demo complete" : "Ready in your UPI app"}</h1><strong className="ps-paid-amount">{inr(Number(amount))}</strong><p className="ps-handle">{handle}</p><p>{a?.synthetic ? "Your prototype payment is complete. No real money was transferred." : "Finish authorizing the payment in your UPI app. Your bank will confirm its status."}</p><button className="ps-primary" onClick={reset}>Back to payments</button></section>}
     {error && <p className="ps-error" role="alert">{error}</p>}
+    <VoiceGuide stage={step} suspended={scanner || listening} amount={a?.amount ?? Number(amount)}
+      receiver={res?.receiver?.display_name ?? name} score={a?.score}
+      synthetic={Boolean(a?.synthetic)} reasonCodes={(a?.reasons ?? []).map((r: { code: string }) => r.code)} />
     <footer className="ps-footer"><Logo size={18}/> Protected by PayShield</footer>
     </main>
     {step === "scan" && <div className="ps-dock"><button onClick={() => setScanner(true)}><Icon kind="qr"/> Scan any UPI QR</button></div>}

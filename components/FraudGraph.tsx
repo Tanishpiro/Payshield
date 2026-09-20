@@ -20,11 +20,11 @@ export default function FraudGraph({
     const m = new Map<string, { x: number; y: number }>();
     inner.forEach((n, i) => {
       const a = (i / Math.max(1, inner.length)) * Math.PI * 2 - Math.PI / 2;
-      m.set(n.id, { x: W / 2 + Math.cos(a) * 112, y: H / 2 + Math.sin(a) * 92 });
+      m.set(n.id, { x: W / 2 + Math.cos(a) * 104, y: H / 2 + Math.sin(a) * 84 });
     });
     outer.forEach((n, i) => {
       const a = (i / Math.max(1, outer.length)) * Math.PI * 2 + 0.42;
-      m.set(n.id, { x: W / 2 + Math.cos(a) * 300, y: H / 2 + Math.sin(a) * 170 });
+      m.set(n.id, { x: W / 2 + Math.cos(a) * 252, y: H / 2 + Math.sin(a) * 158 });
     });
     return { pos: m, clustered: connected };
   }, [nodes, edges]);
@@ -50,9 +50,9 @@ export default function FraudGraph({
           aria-label="Fraud network graph of connected receiver accounts"
           onMouseLeave={() => setFocus(null)}>
           {/* cluster halo */}
-          <ellipse cx={W / 2} cy={H / 2} rx={176} ry={150} fill="var(--crit)" fillOpacity=".035"
+          <ellipse cx={W / 2} cy={H / 2} rx={152} ry={128} fill="var(--crit)" fillOpacity=".04"
             stroke="var(--crit)" strokeOpacity=".16" strokeDasharray="4 5" />
-          <text x={W / 2} y={H / 2 - 158} textAnchor="middle" fontSize="10.5" fontWeight="600"
+          <text x={W / 2} y={H / 2 - 136} textAnchor="middle" fontSize="10.5" fontWeight="600"
             letterSpacing=".08em" fill="var(--crit-ink)">SUSPECTED CLUSTER</text>
 
           {edges.map((e, i) => {
