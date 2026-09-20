@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CapacitorHttp } from "@capacitor/core";
-import { isNativeAndroid } from "@/lib/native";
+import { isNativeAndroid, playNativeAudio, stopNativeAudio } from "@/lib/native";
 import type { NarrationRequest } from "@/lib/narration";
 
 type Props = {
@@ -15,6 +15,8 @@ type Props = {
   reasonCodes: string[];
   requestApproval?: boolean;
   onNarrationEnded?: () => void;
+  conversation?: boolean;
+  sessionId?: number;
 };
 
 const DEPLOYED_BACKEND = "https://payshield-ai-police.netlify.app";
@@ -29,7 +31,7 @@ export default function VoiceGuide(props: Props) {
   const audio = useRef<HTMLAudioElement>(null);
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0);
-  const cached = useRef<{ key: string; src: string } | null>(null);
+  const cached = useRef<{ key: string; src: string; base64?: string } | null>(null);
   const autoKey = useRef("");
 
   useEffect(() => {
@@ -46,6 +48,7 @@ export default function VoiceGuide(props: Props) {
     controller.current?.abort();
     controller.current = null;
     audio.current?.pause();
+    void stopNativeAudio();
     setBusy(false);
   }, []);
 
@@ -58,6 +61,7 @@ export default function VoiceGuide(props: Props) {
 
   useEffect(() => () => {
     controller.current?.abort();
+    void stopNativeAudio();
     audio.current?.pause();
     if (cached.current) URL.revokeObjectURL(cached.current.src);
   }, []);
@@ -102,6 +106,7 @@ export default function VoiceGuide(props: Props) {
         const timeout = window.setTimeout(() => abort.abort(), 25_000);
         try {
           let blob: Blob;
+          let base64: string | undefined;
           if (isNativeAndroid()) {
             const response = await CapacitorHttp.request({
               method: "POST", url: endpoint(),
@@ -110,6 +115,7 @@ export default function VoiceGuide(props: Props) {
             });
             if (response.status < 200 || response.status >= 300) throw new Error(response.data?.error || "Voice service unavailable. Check the backend and access code.");
             const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
+            base64 = response.data;
             blob = new Blob([bytes], { type: "audio/mpeg" });
           } else {
           const response = await fetch(endpoint(), {
@@ -123,12 +129,20 @@ export default function VoiceGuide(props: Props) {
           blob = await response.blob();
           }
           if (id !== generation.current) return;
-          cached.current = { key: cacheKey, src: URL.createObjectURL(blob) };
+          cached.current = { key: cacheKey, src: URL.createObjectURL(blob), base64 };
           audio.current!.src = cached.current.src;
         } finally { window.clearTimeout(timeout); }
         if (id !== generation.current) return;
       } else if (current !== generation.current) return;
       setBusy(false);
+      if (isNativeAndroid() && cached.current?.base64) {
+        setStatus("Speaking with ElevenLabs");
+        await playNativeAudio(cached.current.base64);
+        if (current !== generation.current) return;
+        setStatus("Finished speaking.");
+        if (body.event === "result" && body.requestApproval) props.onNarrationEnded?.();
+        return;
+      }
       if (!audio.current) return;
       audio.current.currentTime = 0;
       try {
@@ -151,23 +165,23 @@ export default function VoiceGuide(props: Props) {
   useEffect(() => {
     clearAudio();
     setStatus("");
-    if (props.suspended || !loaded || !enabled || !requestKey || !code || (isNativeAndroid() && !url)) return;
-    const key = requestKey + url + code;
+    if (props.suspended || !loaded || (!enabled && !props.conversation) || !requestKey || !code || (isNativeAndroid() && !url)) return;
+    const key = requestKey + url + code + props.sessionId;
     if (autoKey.current === key) return;
     autoKey.current = key;
     void play(JSON.parse(requestKey));
     // The serialized snapshot is the trigger; play reads that render's settings.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, props.stage, props.suspended, enabled, loaded, url, code, clearAudio]);
+  }, [requestKey, props.stage, props.suspended, enabled, loaded, url, code, clearAudio, props.conversation, props.sessionId]);
 
   const settingsVisible = props.stage === "scan";
   if (!settingsVisible && !event) return <audio ref={audio} hidden />;
   return <section className="ps-card ps-voice-guide">
     <div className="ps-title"><h2>Voice guide</h2><span>ElevenLabs</span></div>
-    <label className="ps-voice-toggle"><span><strong>Read payment guidance aloud</strong><small>Risk explanations and confirmations</small></span><input type="checkbox" checked={enabled} onChange={e => {
+    {!props.conversation && <label className="ps-voice-toggle"><span><strong>Read payment guidance aloud</strong><small>Risk explanations and confirmations</small></span><input type="checkbox" checked={enabled} onChange={e => {
       setEnabled(e.target.checked); autoKey.current = "";
       try { localStorage.setItem("ps-voice-enabled", String(e.target.checked)); } catch {}
-    }} /></label>
+    }} /></label>}
     {settingsVisible && <details className="ps-voice-settings"><summary>Voice settings</summary>
       <label className="ps-label" htmlFor="ps-voice-url">PayShield backend URL</label>
       <input id="ps-voice-url" placeholder="http://localhost:3010 for USB testing" type="url" value={url} onChange={e => {
@@ -186,7 +200,7 @@ export default function VoiceGuide(props: Props) {
       <button className="ps-secondary" disabled={busy || props.suspended} onClick={() => request && void play(request)}>{busy ? "Preparing audio…" : "Listen / replay"}</button>
       <button className="ps-secondary" onClick={() => { stop(); setStatus("Playback stopped."); }}>Stop</button>
     </div>}
-    <audio ref={audio} controls preload="none" aria-label="PayShield spoken guidance" onEnded={() => {
+    <audio ref={audio} controls={!isNativeAndroid()} hidden={isNativeAndroid()} preload="none" aria-label="PayShield spoken guidance" onEnded={() => {
       setStatus(props.requestApproval ? "Listening for approve or cancel…" : "Finished speaking.");
       if (event === "result" && props.requestApproval) props.onNarrationEnded?.();
     }} onError={() => setStatus("Audio could not play. Try again.")}/>

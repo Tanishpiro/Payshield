@@ -6,3 +6,13 @@ functions = "netlify/functions"
 from = "/api/voice"
 to = "/.netlify/functions/voice"
 status = 200
+
+[[redirects]]
+from = "/api/cases"
+to = "/.netlify/functions/cases"
+status = 200
+
+[[redirects]]
+from = "/investigator"
+to = "/investigator.html"
+status = 200

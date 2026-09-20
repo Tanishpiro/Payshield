@@ -2,6 +2,10 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 
 type NativeGuard = {
   listen(): Promise<{ transcript: string }>;
+  playAudio(options: { base64: string }): Promise<void>;
+  stopAudio(): Promise<void>;
+  cancelListening(): Promise<void>;
+  shareReport(options: { base64: string; caseNumber: string }): Promise<void>;
   authenticate(options: { reason: string }): Promise<{ verified: boolean }>;
   openUpi(options: { uri: string; riskScore: number }): Promise<{ opened: boolean }>;
 };
@@ -9,6 +13,10 @@ type NativeGuard = {
 const NativeGuard = registerPlugin<NativeGuard>("PayShieldGuard");
 
 export const isNativeAndroid = () => Capacitor.getPlatform() === "android";
+export const playNativeAudio = (base64: string) => NativeGuard.playAudio({ base64 });
+export const stopNativeAudio = () => isNativeAndroid() ? NativeGuard.stopAudio().catch(() => {}) : Promise.resolve();
+export const cancelListening = () => isNativeAndroid() ? NativeGuard.cancelListening().catch(() => {}) : Promise.resolve();
+export const shareNativeReport = (base64: string, caseNumber: string) => NativeGuard.shareReport({ base64, caseNumber });
 
 export async function listenForPayment(): Promise<string> {
   if (isNativeAndroid()) return (await NativeGuard.listen()).transcript;

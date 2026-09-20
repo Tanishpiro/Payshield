@@ -18,26 +18,15 @@ export async function listReceivers() {
 export async function analyseLocal(handle: string, amount: number, inputMode?: "manual" | "qr" | "voice") {
   const h = handle.trim().toLowerCase();
   const isNumber = /^\+?\d{10,15}$/.test(h);
+  // Fixed demo profiles do not need remote receiver lookup before speaking the score.
+  if (isNumber || inputMode === 'qr') {
+    const assessment = applyPrototypeProfile({score:78,level:'high',action:'verify',trustScore:10,amount,headline:'Prototype receiver',reasons:[],positives:[],confidence:100,policyVersion:'AI-POLICE-2.0',scoreBasis:'risk-engine'}, inputMode === 'qr' ? 'qr' : 'number');
+    return { found:true, receiver:{handle:h,display_name:h==='9876543210'?'Suresh':h==='9812345678'?'Anita':'Demo receiver',kyc_status:'unverified',links:[]}, assessment };
+  }
   const { data: rs } = await db.from("ps_receivers").select("*").ilike("handle", h).limit(1);
   const r = rs?.[0];
 
   if (!r) {
-    if (inputMode === "qr") {
-      const assessment = applyPrototypeProfile({
-        score: 78, level: "high", action: "verify", trustScore: 10, amount,
-        headline: "Unknown receiver", reasons: [], positives: [], confidence: 100,
-        policyVersion: "AI-POLICE-2.0", scoreBasis: "risk-engine",
-      }, "qr");
-      return { found: true, receiver: { handle: h, display_name: "Scanned demo receiver", kyc_status: "unverified", links: [] }, assessment };
-    }
-    if (isNumber) {
-      const assessment = applyPrototypeProfile({
-        score: 78, level: "high", action: "verify", trustScore: 10, amount,
-        headline: "Unknown receiver", reasons: [], positives: [], confidence: 100,
-        policyVersion: "AI-POLICE-2.0", scoreBasis: "risk-engine",
-      }, "number");
-      return { found: true, receiver: { handle: h, display_name: `Demo receiver ${h.slice(-4)}`, kyc_status: "verified", links: [] }, assessment };
-    }
     return {
       found: false,
       receiver: { handle, display_name: "Unknown receiver", kyc_status: "unverified", links: [] },
@@ -93,7 +82,7 @@ export async function analyseLocal(handle: string, amount: number, inputMode?: "
     }),
   };
 
-  const a = applyPrototypeProfile(assess(facts, amount), inputMode === "qr" ? "qr" : undefined);
+  const a = {...assess(facts, amount), reportVpn: facts.devices.length ? facts.devices.some(d=>d.is_vpn)?'detected':'not-detected':'unknown'};
   db.from("ps_assessments").insert({
     receiver_id: r.id, receiver_handle: r.handle, sender_handle: "android@payshield", amount,
     score: a.score, level: a.level, action: a.action, trust_score: a.trustScore,

@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "./ui";
 import "./payment.css";
 import { LEVEL_META, type RiskLevel } from "@/lib/risk";
 import QrScanner from "./QrScanner";
 import { parsePaymentQr, parseVoicePayment, resolveReceiver, upiPaymentUri } from "@/lib/payment-intent";
-import { listenForPayment, openUpi, verifyOwner } from "@/lib/native";
+import { listenForPayment, verifyOwner, cancelListening, stopNativeAudio } from "@/lib/native";
 import { App } from "@capacitor/app";
 import VoiceGuide from "./VoiceGuide";
+import ScamReport from "./ScamReport";
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 const STEPS = ["Resolving receiver", "Account age & KYC", "Transaction velocity", "Fraud complaint history", "Device & network links", "Scoring"];
@@ -31,11 +32,16 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   const [error, setError] = useState("");
   const [listening, setListening] = useState(false);
   const [inputMode, setInputMode] = useState<"manual" | "qr" | "voice">("manual");
+  const session = useRef(0);
+  const authorizing = useRef(false);
+  const [sessionId,setSessionId] = useState(0);
+  useEffect(() => { if (voicePayment) window.scrollTo({ top: 0, behavior: 'instant' }); }, [voicePayment]);
 
   const acceptVoiceIntent = useCallback((transcript: string) => {
     const intent = parseVoicePayment(transcript);
     if (!intent) throw new Error('Say: “Send 2,000 rupees from HDFC Bank to Suresh.”');
     const resolvedHandle = resolveReceiver(intent.receiver, handles);
+    session.current++; setSessionId(session.current);
     setHandle(resolvedHandle);
     setAmount(String(intent.amount));
     setBank(intent.bank);
@@ -60,6 +66,7 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   }, [acceptVoiceIntent]);
 
   async function analyseValues(nextHandle: string, value: number, mode: "manual" | "qr" | "voice") {
+    const id = session.current;
     if (!nextHandle.trim() || !Number.isFinite(value) || value <= 0 || value > 200000) {
       setError("Enter an amount between ₹1 and ₹2,00,000.");
       return;
@@ -74,27 +81,32 @@ export default function PayApp({ handles, analyse: analyseFn }: {
           body: JSON.stringify({ handle: nextHandle, amount: value, sender: "mobile@payshield", inputMode: mode }),
         }).then((x) => x.json()).catch(() => null);
     setTimeout(() => {
+      if (id !== session.current) return;
       if (!r?.assessment) {
         setError(r?.error || "PayShield could not complete the check. Please try again.");
         setStep("amount");
         return;
       }
-      setRes(r); setStep("result");
-    }, Math.max(0, 1600 - (Date.now() - t0)));
+      setRes({...r, assessment: {...r.assessment, synthetic: true}}); setStep("result");
+    }, mode === "voice" ? 0 : Math.max(0, 1600 - (Date.now() - t0)));
   }
 
   async function analyse() { await analyseValues(handle, Number(amount), inputMode); }
 
-  function reset() { setStep("scan"); setHandle(""); setAmount(""); setRes(null); setBank(""); setVoicePayment(false); setVoiceText(""); setError(""); setInputMode("manual"); }
+  function reset() { session.current++; void cancelListening(); void stopNativeAudio(); setListening(false); setStep("scan"); setHandle(""); setAmount(""); setRes(null); setBank(""); setVoicePayment(false); setVoiceText(""); setError(""); setInputMode("manual"); }
 
   async function captureVoice() {
     if (listening) return;
+    if (!sessionStorage.getItem('ps-voice-code')) { setError('Open Voice settings and enter your access code to enable spoken payment approval.'); return; }
+    const id = ++session.current;
+    setVoicePayment(true);setRes(null);setStep('scan');
     setListening(true);
     setError("");
     try {
       const transcript = await listenForPayment();
+      if (id !== session.current) return;
       acceptVoiceIntent(transcript);
-    } catch (e) { setError(e instanceof Error ? e.message : "Voice recognition failed."); }
+    } catch (e) { if(id===session.current)setError(e instanceof Error ? e.message : "Voice recognition failed."); }
     finally { setListening(false); }
   }
 
@@ -110,7 +122,9 @@ export default function PayApp({ handles, analyse: analyseFn }: {
   }, []);
 
   async function authorizePayment() {
-    if (!a || a.action === "block" || a.score > 90) return;
+    if (!a || a.action === "block" || a.score > 90 || authorizing.current) return;
+    authorizing.current = true;
+    const id = session.current;
     setError("");
     const needsOwnerCheck = true;
     if (needsOwnerCheck) {
@@ -118,31 +132,37 @@ export default function PayApp({ handles, analyse: analyseFn }: {
       try {
         const ok = await verifyOwner(`Confirm ${inr(Number(amount))} to ${res.receiver.display_name}`);
         if (!ok) throw new Error("Identity verification was not completed.");
+        if (id !== session.current) { authorizing.current = false; return; }
       } catch (e) {
+        if (id !== session.current) { authorizing.current = false; return; }
         setError(e instanceof Error ? e.message : "Identity verification failed.");
         setStep("result");
+        authorizing.current = false;
         return;
       }
     }
     try {
-      if (!a.synthetic) await openUpi(upiPaymentUri(res.receiver.handle, res.receiver.display_name, Number(amount)), a.score);
+      // This build is a payment simulator. No UPI handoff or real transfer is attempted.
       setStep("paid");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No compatible UPI app is available.");
       setStep("result");
     }
+    authorizing.current = false;
   }
 
   async function captureVoiceApproval() {
     if (listening || step !== "result" || !voicePayment || !a) return;
     setListening(true);
     setError("");
+    const id = session.current;
     try {
       const answer = (await listenForPayment()).trim().toLowerCase();
-      if (/\b(approve|approved|yes|confirm|continue|proceed)\b/.test(answer)) await authorizePayment();
-      else if (/\b(cancel|stop|no|reject)\b/.test(answer)) reset();
+      if (id !== session.current) return;
+      if (/\b(cancel|stop|no|not|don't|reject)\b/.test(answer)) reset();
+      else if (/^(approve|approved|yes|confirm|continue|proceed|yes approve|i approve)[.!?]*$/.test(answer)) await authorizePayment();
       else setError('Please say “approve” to open fingerprint verification, or “cancel”.');
-    } catch (e) { setError(e instanceof Error ? e.message : "Voice approval was not recognised."); }
+    } catch (e) { if(id===session.current)setError(e instanceof Error ? e.message : "Voice approval was not recognised."); }
     finally { setListening(false); }
   }
 
@@ -155,6 +175,8 @@ export default function PayApp({ handles, analyse: analyseFn }: {
     {scanner && <QrScanner onScan={acceptQr} onClose={() => setScanner(false)} />}
     <header className="ps-header"><div className="ps-brand"><Logo size={32}/><div><strong>PayShield</strong><small>Every payment. Protected.</small></div></div><span className="ps-tag">PROTOTYPE</span></header>
     <main className="ps-content">
+    {voicePayment && <section className="ps-card ps-conversation" aria-live="polite"><Icon kind="mic"/><h1>{listening?'Listening…':step==='analysing'?'Checking your payment…':step==='paid'?'Demo successful':step==='authenticating'?'Confirm your fingerprint':'Voice payment'}</h1><p>{voiceText || 'Say: Send 2000 rupees from HDFC to Suresh.'}</p>{a&&<p>{inr(a.amount)} · Risk {a.score}/100 · {a.score>90?'Payment blocked':'No real funds move'}</p>}{step==='result'&&a?.score<=90&&<button className="ps-secondary" disabled={listening} onClick={captureVoiceApproval}>Say approve or cancel</button>}<button className="ps-secondary" onClick={reset}>{step==='paid'?'Back to payments':'Cancel voice payment'}</button></section>}
+    <div hidden={voicePayment}>
     {step === "scan" && <>
       <section className="ps-hero"><span className="ps-eyebrow">PAY WITH PEACE OF MIND</span><h1>Your money.<br/>An extra layer of care.</h1><p>AI Police checks the receiver before you pay.</p><span className="ps-protection">● Protection is on</span><div className="ps-hero-symbol"><Icon kind="shield"/></div></section>
       <section className="ps-card"><div className="ps-title"><h2>Transfer money</h2><span>Simple & secure</span></div>
@@ -190,15 +212,17 @@ export default function PayApp({ handles, analyse: analyseFn }: {
       <button className="ps-primary" disabled={a.action === "block"} onClick={authorizePayment}>{a.action === "block" ? "Payment blocked" : "Verify face / fingerprint"}<Icon kind="shield"/></button><button className="ps-secondary" onClick={reset}>Cancel payment</button>
     </>}
     {step === "paid" && <section className="ps-card ps-status"><div className="ps-success">✓</div><h1>{a?.synthetic ? "Demo complete" : "Ready in your UPI app"}</h1><strong className="ps-paid-amount">{inr(Number(amount))}</strong><p className="ps-handle">{handle}</p><p>{a?.synthetic ? "Your prototype payment is complete. No real money was transferred." : "Finish authorizing the payment in your UPI app. Your bank will confirm its status."}</p><button className="ps-primary" onClick={reset}>Back to payments</button></section>}
+    </div>
     {error && <p className="ps-error" role="alert">{error}</p>}
-    <VoiceGuide stage={step} suspended={scanner || listening} amount={a?.amount ?? Number(amount)}
+    <VoiceGuide stage={step} conversation={voicePayment} sessionId={sessionId} suspended={scanner || listening} amount={a?.amount ?? Number(amount)}
       receiver={res?.receiver?.display_name ?? name} score={a?.score}
       synthetic={Boolean(a?.synthetic)} reasonCodes={(a?.reasons ?? []).map((r: { code: string }) => r.code)}
       requestApproval={voicePayment && step === "result" && a?.action !== "block" && a?.score <= 90}
       onNarrationEnded={captureVoiceApproval} />
+    {a && (step === 'result' || step === 'paid') && <ScamReport key={sessionId+'-'+handle+'-'+amount} assessment={a} mode={inputMode} />}
     <footer className="ps-footer"><Logo size={18}/> Protected by PayShield</footer>
     </main>
-    {step === "scan" && <div className="ps-dock"><button onClick={() => setScanner(true)}><Icon kind="qr"/> Scan any UPI QR</button></div>}
+    {step === "scan" && !voicePayment && <div className="ps-dock"><button onClick={() => setScanner(true)}><Icon kind="qr"/> Scan any UPI QR</button></div>}
   </div>;
 }
 

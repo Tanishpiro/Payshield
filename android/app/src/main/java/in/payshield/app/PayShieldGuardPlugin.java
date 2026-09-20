@@ -5,6 +5,20 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 import android.speech.RecognizerIntent;
+import android.Manifest;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.speech.SpeechRecognizer;
+import android.speech.RecognitionListener;
+import android.media.MediaPlayer;
+import android.util.Base64;
+import java.io.File;
+import java.io.FileOutputStream;
+import androidx.core.content.FileProvider;
+import com.getcapacitor.PermissionState;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import androidx.activity.result.ActivityResult;
 import androidx.biometric.BiometricManager;
@@ -23,22 +37,94 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.concurrent.Executor;
 
-@CapacitorPlugin(name = "PayShieldGuard")
+@CapacitorPlugin(name = "PayShieldGuard", permissions = { @Permission(alias = "microphone", strings = { Manifest.permission.RECORD_AUDIO }) })
 public class PayShieldGuardPlugin extends Plugin {
     private volatile long lastStrongAuthenticationAt = 0L;
     private boolean authenticationPending = false;
+    private SpeechRecognizer recognizer;
+    private PluginCall speechCall;
+    private MediaPlayer player;
+    private PluginCall audioCall;
+    private File audioFile;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable speechTimeout = () -> finishSpeech(null, "Listening timed out. Try again.");
     @PluginMethod
     public void listen(PluginCall call) {
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN");
-        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Say your protected payment instruction");
-        try {
-            startActivityForResult(call, intent, "voiceResult");
-        } catch (ActivityNotFoundException error) {
-            call.reject("No speech recognition service is available on this device.");
-        }
+        if (getPermissionState("microphone") != PermissionState.GRANTED) { requestPermissionForAlias("microphone", call, "microphonePermission"); return; }
+        getActivity().runOnUiThread(() -> beginSpeech(call));
     }
+
+    @PermissionCallback
+    private void microphonePermission(PluginCall call) {
+        if (getPermissionState("microphone") != PermissionState.GRANTED) { call.reject("Microphone permission is required for voice payments."); return; }
+        getActivity().runOnUiThread(() -> beginSpeech(call));
+    }
+    private void finishSpeech(String transcript, String error) {
+        mainHandler.removeCallbacks(speechTimeout);
+        PluginCall pending = speechCall; speechCall = null;
+        if (recognizer != null) { recognizer.destroy(); recognizer = null; }
+        if (pending == null) return;
+        if (error != null) pending.reject(error);
+        else { JSObject out = new JSObject(); out.put("transcript", transcript); pending.resolve(out); }
+    }
+    private void beginSpeech(PluginCall call) {
+        if (speechCall != null) { call.reject("A voice session is already listening."); return; }
+        if (!SpeechRecognizer.isRecognitionAvailable(getContext())) { call.reject("No speech recognition service is available."); return; }
+        speechCall = call;
+        try {
+            recognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
+            recognizer.setRecognitionListener(new RecognitionListener() {
+                public void onReadyForSpeech(Bundle b) {} public void onBeginningOfSpeech() {} public void onRmsChanged(float r) {}
+                public void onBufferReceived(byte[] b) {} public void onEndOfSpeech() {} public void onPartialResults(Bundle b) {} public void onEvent(int t, Bundle b) {}
+                public void onError(int error) { finishSpeech(null, "Could not hear your response (" + error + "). Please try again."); }
+                public void onResults(Bundle result) { ArrayList<String> values = result.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION); if (values == null || values.isEmpty()) finishSpeech(null, "No speech recognized."); else finishSpeech(values.get(0), null); }
+            });
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN");
+            recognizer.startListening(intent); mainHandler.postDelayed(speechTimeout, 20000);
+        } catch (RuntimeException e) { finishSpeech(null, "Could not start voice recognition."); }
+    }
+    private void finishAudio(String error) {
+        PluginCall pending = audioCall; audioCall = null;
+        if (player != null) { player.release(); player = null; }
+        if (audioFile != null) { audioFile.delete(); audioFile = null; }
+        if (pending != null) { if (error == null) pending.resolve(); else pending.reject(error); }
+    }
+    @PluginMethod
+    public void playAudio(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            finishAudio("Playback replaced."); audioCall = call;
+            try {
+                String data = call.getString("base64", ""); if (data.length() > 8000000) throw new Exception();
+                audioFile = File.createTempFile("ps-voice-", ".mp3", getContext().getCacheDir());
+                try (FileOutputStream out = new FileOutputStream(audioFile)) { out.write(Base64.decode(data, Base64.DEFAULT)); }
+                player = new MediaPlayer(); player.setDataSource(audioFile.getAbsolutePath());
+                player.setOnCompletionListener(p -> finishAudio(null));
+                player.setOnErrorListener((p,w,e) -> { finishAudio("Audio playback failed."); return true; });
+                player.setOnPreparedListener(MediaPlayer::start); player.prepareAsync();
+            } catch (Exception e) { finishAudio("Unable to play voice guidance."); }
+        });
+    }
+    @PluginMethod
+    public void stopAudio(PluginCall call) { getActivity().runOnUiThread(() -> { finishAudio("Playback stopped."); call.resolve(); }); }
+    @PluginMethod
+    public void cancelListening(PluginCall call) { getActivity().runOnUiThread(() -> { finishSpeech(null, "Listening cancelled."); call.resolve(); }); }
+    @PluginMethod
+    public void shareReport(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                String id = call.getString("caseNumber", ""); if (!id.matches("PS-[A-F0-9]{16}")) throw new Exception();
+                String data = call.getString("base64", ""); if (data.length() > 2000000) throw new Exception();
+                File report = new File(getContext().getCacheDir(), id + ".pdf");
+                try (FileOutputStream out = new FileOutputStream(report)) { out.write(Base64.decode(data, Base64.DEFAULT)); }
+                Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", report);
+                Intent intent = new Intent(Intent.ACTION_SEND).setType("application/pdf").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                getActivity().startActivity(Intent.createChooser(intent, "Save or share sender report")); call.resolve();
+            } catch (Exception e) { call.reject("Could not share the PDF. Retry from your case receipt."); }
+        });
+    }
+    @Override protected void handleOnDestroy() { mainHandler.post(() -> { finishSpeech(null, "Session closed."); finishAudio("Session closed."); }); }
 
     @ActivityCallback
     private void voiceResult(PluginCall call, ActivityResult result) {
